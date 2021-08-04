@@ -1,13 +1,10 @@
-TERMUX_PKG_HOMEPAGE=http://termux.com
-TERMUX_PKG_DESCRIPTION="Simple commandline audio player for Android"
-TERMUX_PKG_VERSION=0.2
-
-termux_step_make_install () {
-	$CXX $CFLAGS $LDFLAGS \
-		-std=c++14 -Wall -Wextra -pedantic -Werror \
-		-lOpenSLES \
-		$TERMUX_PKG_BUILDER_DIR/play-audio.cpp -o $TERMUX_PREFIX/bin/play-audio
-
-	mkdir -p $TERMUX_PREFIX/share/man/man1/
-	cp $TERMUX_PKG_BUILDER_DIR/play-audio.1 $TERMUX_PREFIX/share/man/man1/
-}
+TERMUX_PKG_HOMEPAGE=https://github.com/termux/play-audio
+TERMUX_PKG_DESCRIPTION="Simple command line audio player for Android"
+TERMUX_PKG_LICENSE="Apache-2.0"
+TERMUX_PKG_MAINTAINER="@termux"
+TERMUX_PKG_VERSION=0.5
+TERMUX_PKG_REVISION=4
+TERMUX_PKG_SRCURL=https://github.com/termux/play-audio/archive/v${TERMUX_PKG_VERSION}.tar.gz
+TERMUX_PKG_SHA256=e114123c4b337cddb1d4aa6c3287574d8c81b2dc4b3abc07ce21616fa14f9e82
+TERMUX_PKG_DEPENDS="libc++"
+TERMUX_PKG_BUILD_IN_SRC=true

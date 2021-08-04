@@ -183,7 +183,7 @@ glob(const char *pattern, int flags, int (*errfunc)(const char *, int), glob_t *
 	if (flags & GLOB_LIMIT) {
 		limit = pglob->gl_matchc;
 		if (limit == 0)
-			limit = ARG_MAX;
+			limit = sysconf(_SC_ARG_MAX);
 	} else
 		limit = 0;
 	pglob->gl_flags = flags & ~GLOB_MAGCHAR;
@@ -391,7 +391,10 @@ globtilde(const Char *pattern, Char *patbuf, size_t patbuf_len, glob_t *pglob)
 		 * we're not running setuid or setgid) and then trying
 		 * the password file
 		 */
-		if (issetugid() != 0 ||
+		if (
+#ifndef __ANDROID__
+		     issetugid() != 0 ||
+#endif
 		    (h = getenv("HOME")) == NULL) {
 			if (((h = getlogin()) != NULL &&
 			     (pwd = getpwnam(h)) != NULL) ||

@@ -1,18 +1,39 @@
-TERMUX_PKG_HOMEPAGE=http://curl.haxx.se/docs/caextract.html
+TERMUX_PKG_HOMEPAGE=https://curl.se/docs/caextract.html
 TERMUX_PKG_DESCRIPTION="Common CA certificates"
-TERMUX_PKG_VERSION=20151028
-TERMUX_PKG_BUILD_REVISION=2
-TERMUX_PKG_PLATFORM_INDEPENDENT=yes
+TERMUX_PKG_LICENSE="GPL-2.0"
+TERMUX_PKG_MAINTAINER="@termux"
+TERMUX_PKG_VERSION=20210603
+TERMUX_PKG_SRCURL=https://curl.se/ca/cacert.pem
+# If the checksum has changed, it may be time to update the package version:
+TERMUX_PKG_SHA256=a3b534269c6974631db35f952e8d7c7dbf3d81ab329a232df575c2661de1214a
+TERMUX_PKG_SKIP_SRC_EXTRACT=true
+TERMUX_PKG_PLATFORM_INDEPENDENT=true
 
-termux_step_make_install () {
-	CERTFILE=$TERMUX_PKG_TMPDIR/cert.pem
-	curl -o $CERTFILE https://raw.githubusercontent.com/bagder/ca-bundle/master/ca-bundle.crt
-	if grep -q 'SHA1: 6d7d2f0a4fae587e7431be191a081ac1257d300a' $CERTFILE; then
-		CERT_DIR=$TERMUX_PREFIX/etc/tls
-		mkdir -p $CERT_DIR
-		mv $CERTFILE $CERT_DIR/cert.pem
-	else
-		echo "Have https://raw.githubusercontent.com/bagder/ca-bundle/master/ca-bundle.crt been updated?"
-		exit 1
-	fi
+termux_step_make_install() {
+	local CERTDIR=$TERMUX_PREFIX/etc/tls
+	local CERTFILE=$CERTDIR/cert.pem
+
+	mkdir -p $CERTDIR
+
+	termux_download $TERMUX_PKG_SRCURL \
+		$CERTFILE \
+		$TERMUX_PKG_SHA256
+	touch $CERTFILE
+
+	# Build java keystore which is split out into a ca-certificates-java subpackage:
+	local KEYUTIL_JAR=$TERMUX_PKG_CACHEDIR/keyutil-0.4.0.jar
+	termux_download \
+		https://github.com/use-sparingly/keyutil/releases/download/0.4.0/keyutil-0.4.0.jar \
+		$KEYUTIL_JAR \
+		18f1d2c82839d84949b1ad015343c509e81ef678c24db6112acc6c0761314610
+
+	local JAVA_KEYSTORE_DIR=$PREFIX/lib/jvm/openjdk-9/lib/security
+	mkdir -p $JAVA_KEYSTORE_DIR
+
+	java -jar $KEYUTIL_JAR \
+		--import \
+		--new-keystore $JAVA_KEYSTORE_DIR/jssecacerts \
+		--password changeit \
+		--force-new-overwrite \
+		--import-pem-file $CERTFILE
 }

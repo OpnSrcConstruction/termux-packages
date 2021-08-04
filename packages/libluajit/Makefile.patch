@@ -1,22 +1,11 @@
-Link the luajit executable to the shared libraries.
-
-diff -u -r ../LuaJIT-2.0.3/src/Makefile ./src/Makefile
---- ../LuaJIT-2.0.3/src/Makefile	2014-03-12 13:10:00.000000000 +0100
-+++ ./src/Makefile	2014-07-09 02:39:15.344355861 +0200
-@@ -72,14 +72,14 @@
- # as dynamic mode.
+--- LuaJIT-old/Makefile	2021-03-11 01:19:04.000000000 +0600
++++ LuaJIT-new/Makefile	2021-07-05 09:41:36.271253147 +0600
+@@ -25,7 +25,7 @@
+ # Change the installation path as needed. This automatically adjusts
+ # the paths in src/luaconf.h, too. Note: PREFIX must be an absolute path!
  #
- # Mixed mode creates a static + dynamic library and a statically linked luajit.
--BUILDMODE= mixed
-+#BUILDMODE= mixed
- #
- # Static mode creates a static library and a statically linked luajit.
- #BUILDMODE= static
- #
- # Dynamic mode creates a dynamic library and a dynamically linked luajit.
- # Note: this executable will only run when the library is installed!
--#BUILDMODE= dynamic
-+BUILDMODE= dynamic
- #
+-export PREFIX= /usr/local
++export PREFIX?= /usr/local
+ export MULTILIB= lib
  ##############################################################################
  

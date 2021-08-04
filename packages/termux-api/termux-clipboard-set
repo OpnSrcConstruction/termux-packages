@@ -1,4 +1,0 @@
-#!/bin/sh
-
-TEXT=`cat -`
-@TERMUX_API@ Clipboard --es text "$TEXT"

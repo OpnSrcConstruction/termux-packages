@@ -1,66 +1,49 @@
 TERMUX_PKG_HOMEPAGE=https://golang.org/
 TERMUX_PKG_DESCRIPTION="Go programming language compiler"
-_MAJOR_VERSION=1.5.1
-# Need to be considered a higher version than "1.5rc1":
-TERMUX_PKG_VERSION=1:$_MAJOR_VERSION
+TERMUX_PKG_LICENSE="BSD 3-Clause"
+TERMUX_PKG_MAINTAINER="@termux"
+_MAJOR_VERSION=1.16.6
+# Use the ~ deb versioning construct in the future:
+TERMUX_PKG_VERSION=2:${_MAJOR_VERSION}
 TERMUX_PKG_SRCURL=https://storage.googleapis.com/golang/go${_MAJOR_VERSION}.src.tar.gz
-TERMUX_PKG_FOLDERNAME=go
-TERMUX_PKG_KEEP_STATIC_LIBRARIES=true
+TERMUX_PKG_SHA256=a3a5d4bc401b51db065e4f93b523347a4d343ae0c0b08a65c3423b05a138037d
+TERMUX_PKG_DEPENDS="clang"
+TERMUX_PKG_NO_STATICSPLIT=true
 
-TERMUX_HOST_GOLANG_DIR=$TERMUX_PKG_CACHEDIR/go-host-$_MAJOR_VERSION
-
-termux_step_post_extract_package () {
-	if [ ! -d $TERMUX_HOST_GOLANG_DIR ]; then
-		cd $TERMUX_PKG_CACHEDIR
-		GOHOST_TARFILE=go-host-${_MAJOR_VERSION}.tar.gz
-		if [ ! -f $GOHOST_TARFILE ]; then
-			curl -o $GOHOST_TARFILE https://storage.googleapis.com/golang/go${_MAJOR_VERSION}.linux-amd64.tar.gz
-		fi
-		tar xf $GOHOST_TARFILE
-		mv go $TERMUX_HOST_GOLANG_DIR
-	fi
-}
-
-termux_step_make_install () {
-	if [ "$TERMUX_ARCH" = "arm" ]; then
-		export GOOS=android
-	    	export CGO_ENABLED=1
-		export GOARCH=arm
-		export GOARM=7
-	elif [ "$TERMUX_ARCH" = "i686" ]; then
-		export GOOS=linux
-	    	export CGO_ENABLED=0
-		export GOARCH=386
-		export GO386=sse2
-	else
-		echo "ERROR: Unsupported arch: $TERMUX_ARCH"
-		exit 1
-	fi
+termux_step_make_install() {
+	termux_setup_golang
 
 	TERMUX_GOLANG_DIRNAME=${GOOS}_$GOARCH
-
 	TERMUX_GODIR=$TERMUX_PREFIX/lib/go
-	rm -Rf $TERMUX_GODIR
-	mkdir -p $TERMUX_GODIR/{src,pkg/tool/$TERMUX_GOLANG_DIRNAME,pkg/include,pkg/$TERMUX_GOLANG_DIRNAME}
 
 	cd $TERMUX_PKG_SRCDIR/src
+	# Unset PKG_CONFIG to avoid the path being hardcoded into src/cmd/cgo/zdefaultcc.go,
+	# see https://github.com/termux/termux-packages/issues/3505.
 	env CC_FOR_TARGET=$CC \
 	    CXX_FOR_TARGET=$CXX \
 	    CC=gcc \
 	    GO_LDFLAGS="-extldflags=-pie" \
-	    GOROOT_BOOTSTRAP=$TERMUX_HOST_GOLANG_DIR \
-            GOROOT_FINAL=$TERMUX_GODIR \
+	    GOROOT_BOOTSTRAP=$GOROOT \
+	    GOROOT_FINAL=$TERMUX_GODIR \
+	    PKG_CONFIG= \
 	    ./make.bash
 
 	cd ..
-	cp bin/$TERMUX_GOLANG_DIRNAME/{go,gofmt} $TERMUX_PREFIX/bin
+	rm -Rf $TERMUX_GODIR
+	mkdir -p $TERMUX_GODIR/{bin,src,doc,lib,pkg/tool/$TERMUX_GOLANG_DIRNAME,pkg/include,pkg/${TERMUX_GOLANG_DIRNAME}}
+	cp bin/$TERMUX_GOLANG_DIRNAME/{go,gofmt} $TERMUX_GODIR/bin/
+	ln -sfr $TERMUX_GODIR/bin/go $TERMUX_PREFIX/bin/go
+	ln -sfr $TERMUX_GODIR/bin/gofmt $TERMUX_PREFIX/bin/gofmt
 	cp VERSION $TERMUX_GODIR/
 	cp pkg/tool/$TERMUX_GOLANG_DIRNAME/* $TERMUX_GODIR/pkg/tool/$TERMUX_GOLANG_DIRNAME/
 	cp -Rf src/* $TERMUX_GODIR/src/
+	cp -Rf doc/* $TERMUX_GODIR/doc/
 	cp pkg/include/* $TERMUX_GODIR/pkg/include/
-	cp -Rf pkg/$TERMUX_GOLANG_DIRNAME/* $TERMUX_GODIR/pkg/$TERMUX_GOLANG_DIRNAME/
+	cp -Rf lib/* $TERMUX_GODIR/lib
+	cp -Rf pkg/${TERMUX_GOLANG_DIRNAME}/* $TERMUX_GODIR/pkg/${TERMUX_GOLANG_DIRNAME}/
+	cp -Rf misc/ $TERMUX_GODIR/
 }
 
-termux_step_post_massage () {
+termux_step_post_massage() {
 	find . -path '*/testdata*' -delete
 }

@@ -1,21 +1,42 @@
-diff -u -r ../strace-4.8/strace.c ./strace.c
---- ../strace-4.8/strace.c	2013-05-28 23:49:16.000000000 +0200
-+++ ./strace.c	2013-12-30 16:05:39.000000000 +0100
-@@ -540,7 +540,7 @@
- tprints(const char *str)
+diff -uNr strace-4.24/strace.c strace-4.24.mod/strace.c
+--- strace-4.24/src/strace.c	2018-07-11 03:00:57.000000000 +0300
++++ strace-4.24.mod/src/strace.c	2018-10-03 01:15:15.105370170 +0300
+@@ -442,11 +442,7 @@
+ static void
+ swap_uid(void)
  {
- 	if (current_tcp) {
--		int n = fputs_unlocked(str, current_tcp->outf);
-+		int n = fputs(str, current_tcp->outf);
- 		if (n >= 0) {
- 			current_tcp->curcol += strlen(str);
- 			return;
-@@ -917,7 +917,7 @@
- 					struct tcb *cur_tcp;
- 					int tid;
+-	int euid = geteuid(), uid = getuid();
+-
+-	if (euid != uid && setreuid(euid, uid) < 0) {
+-		perror_msg_and_die("setreuid");
+-	}
++    return;
+ }
  
--					if (de->d_fileno == 0)
-+					if (de->d_ino == 0)
- 						continue;
- 					/* we trust /proc filesystem */
- 					tid = atoi(de->d_name);
+ static FILE *
+@@ -1182,25 +1178,6 @@
+ 		}
+ 	}
+ 
+-	if (username != NULL) {
+-		/*
+-		 * It is important to set groups before we
+-		 * lose privileges on setuid.
+-		 */
+-		if (initgroups(username, run_gid) < 0) {
+-			perror_msg_and_die("initgroups");
+-		}
+-		if (setregid(run_gid, params->run_egid) < 0) {
+-			perror_msg_and_die("setregid");
+-		}
+-		if (setreuid(run_uid, params->run_euid) < 0) {
+-			perror_msg_and_die("setreuid");
+-		}
+-	} else if (geteuid() != 0)
+-		if (setreuid(run_uid, run_uid) < 0) {
+-			perror_msg_and_die("setreuid");
+-		}
+-
+ 	if (!daemonized_tracer) {
+ 		/*
+ 		 * Induce a ptrace stop. Tracer (our parent)

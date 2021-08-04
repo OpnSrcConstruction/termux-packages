@@ -8,8 +8,12 @@ show_usage () {
 }
 
 set_shell () {
+	if [ "$1" = login ]; then
+		echo "login is not a valid shell"
+		exit 1
+	fi
 	mkdir -p $HOME/.termux
-	NEW_SHELL=$PREFIX/bin/$1
+	NEW_SHELL=@TERMUX_PREFIX@/bin/$1
 	if test -x $NEW_SHELL -a ! -d $NEW_SHELL; then
 		ln -f -s $NEW_SHELL $HOME/.termux/shell
 	else
@@ -29,7 +33,7 @@ while true; do
 done
 
 DEFAULT_SHELL=bash
-if [ ! -x $PREFIX/bin/$DEFAULT_SHELL ]; then DEFAULT_SHELL=ash; fi
+if [ ! -x @TERMUX_PREFIX@/bin/$DEFAULT_SHELL ]; then DEFAULT_SHELL=ash; fi
 
 echo Changing the login shell
 echo Enter the new value, or press ENTER for the default

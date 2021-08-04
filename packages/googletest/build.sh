@@ -1,11 +1,10 @@
-TERMUX_PKG_HOMEPAGE=https://code.google.com/p/googletest/
+TERMUX_PKG_HOMEPAGE=https://github.com/google/googletest
 TERMUX_PKG_DESCRIPTION="Google C++ testing framework"
-TERMUX_PKG_VERSION=1.7.0
-TERMUX_PKG_SRCURL=https://googletest.googlecode.com/files/gtest-${TERMUX_PKG_VERSION}.zip
-TERMUX_PKG_BUILD_IN_SRC=yes
+TERMUX_PKG_LICENSE="BSD 3-Clause"
+TERMUX_PKG_MAINTAINER="@termux"
+TERMUX_PKG_VERSION=1.11.0
+TERMUX_PKG_SRCURL=https://github.com/google/googletest/archive/release-${TERMUX_PKG_VERSION}.tar.gz
+TERMUX_PKG_SHA256=b4870bf121ff7795ba20d20bcdd8627b8e088f2d1dab299a031c1034eddc93d5
+TERMUX_PKG_DEPENDS="libc++"
+TERMUX_PKG_EXTRA_CONFIGURE_ARGS="-DBUILD_SHARED_LIBS=ON"
 
-termux_step_make_install () {
-        cp ./lib/.libs/*.so* $TERMUX_PREFIX/lib
-        rm -Rf $TERMUX_PREFIX/include/gtest
-        cp -R $TERMUX_PKG_SRCDIR/include/gtest/ $TERMUX_PREFIX/include/gtest/
-}

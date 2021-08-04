@@ -1,35 +1,24 @@
-diff -u -r ../php-5.6.15/ext/opcache/config.m4 ./ext/opcache/config.m4
---- ../php-5.6.15/ext/opcache/config.m4	2015-10-29 05:55:01.000000000 -0400
-+++ ./ext/opcache/config.m4	2015-11-10 15:24:37.080935147 -0500
-@@ -341,7 +341,15 @@
- 	flock_type=linux
-     AC_DEFINE([HAVE_FLOCK_LINUX], [], [Struct flock is Linux-type])
-     AC_MSG_RESULT("yes")
--], AC_MSG_RESULT("no") )
-+], [
-+    AC_MSG_RESULT("no")
-+], [
-+    dnl cross-compiling; assume Linux
-+    flock_type=linux
-+    AC_DEFINE([HAVE_FLOCK_LINUX], [], [Struct flock is Linux-type])
-+    AC_MSG_RESULT("yes")
-+])
-+
+diff -uNr php-8.0.0.orig/ext/opcache/config.m4 php-8.0.0/ext/opcache/config.m4
+--- php-8.0.0.orig/ext/opcache/config.m4	2020-11-24 22:34:03.000000000 +0530
++++ php-8.0.0/ext/opcache/config.m4	2020-12-06 21:26:14.225669677 +0530
+@@ -219,7 +219,9 @@
+ }
+ ]])],[dnl
+     AC_DEFINE(HAVE_SHM_MMAP_ANON, 1, [Define if you have mmap(MAP_ANON) SHM support])
+-    have_shm_mmap_anon=yes],[have_shm_mmap_anon=no],[have_shm_mmap_anon=no])
++    have_shm_mmap_anon=yes],[have_shm_mmap_anon=no],
++    AC_DEFINE(HAVE_SHM_MMAP_ANON, 1, [Define if you have mmap(MAP_ANON) SHM support])
++    have_shm_mmap_anon=yes)
+   AC_MSG_RESULT([$have_shm_mmap_anon])
  
- AC_MSG_CHECKING("whether flock struct is BSD ordered")
- AC_TRY_RUN([
-@@ -357,7 +365,13 @@
- 	flock_type=bsd
-     AC_DEFINE([HAVE_FLOCK_BSD], [], [Struct flock is BSD-type]) 
-     AC_MSG_RESULT("yes")
--], AC_MSG_RESULT("no") )
-+], [
-+    AC_MSG_RESULT("no")
-+], [
-+    dnl cross-compiling; assume Linux
-+    AC_MSG_RESULT("no")
-+])
-+
+   PHP_CHECK_FUNC_LIB(shm_open, rt, root)
+@@ -336,6 +338,9 @@
+ 	$ZEND_JIT_SRC,
+ 	shared,,-DZEND_ENABLE_STATIC_TSRMLS_CACHE=1,,yes)
  
- if test "$flock_type" == "unknown"; then
- 	AC_MSG_ERROR([Don't know how to define struct flock on this system[,] set --enable-opcache=no])
++  OPCACHE_SHARED_LIBADD=-lpcre2-8
++  PHP_SUBST(OPCACHE_SHARED_LIBADD)
++
+   PHP_ADD_BUILD_DIR([$ext_builddir/Optimizer], 1)
+   PHP_ADD_EXTENSION_DEP(opcache, pcre)
+ 

@@ -1,10 +1,28 @@
-TERMUX_PKG_HOMEPAGE=http://www.gnutls.org/
+TERMUX_PKG_HOMEPAGE=https://www.gnutls.org/
 TERMUX_PKG_DESCRIPTION="Secure communications library implementing the SSL, TLS and DTLS protocols and technologies around them"
-TERMUX_PKG_DEPENDS="libgmp, libnettle, ca-certificates"
-_TERMUX_PKG_MAJOR_VERSION=3.4
-TERMUX_PKG_VERSION=${_TERMUX_PKG_MAJOR_VERSION}.6
-TERMUX_PKG_BUILD_REVISION=1
-TERMUX_PKG_SRCURL=ftp://ftp.gnutls.org/gcrypt/gnutls/v${_TERMUX_PKG_MAJOR_VERSION}/gnutls-${TERMUX_PKG_VERSION}.tar.xz
-TERMUX_PKG_EXTRA_CONFIGURE_ARGS="--disable-hardware-acceleration --disable-cxx --disable-openssl-compatibility --with-included-libtasn1 --without-p11-kit --with-default-trust-store-file=$TERMUX_PREFIX/etc/tls/cert.pem"
+TERMUX_PKG_LICENSE="LGPL-2.1"
+TERMUX_PKG_MAINTAINER="@termux"
+TERMUX_PKG_VERSION=3.6.16
+TERMUX_PKG_SRCURL=https://www.gnupg.org/ftp/gcrypt/gnutls/v${TERMUX_PKG_VERSION:0:3}/gnutls-${TERMUX_PKG_VERSION}.tar.xz
+TERMUX_PKG_SHA256=1b79b381ac283d8b054368b335c408fedcb9b7144e0c07f531e3537d4328f3b3
+TERMUX_PKG_DEPENDS="libgmp, libnettle, ca-certificates, libidn2, libunistring"
+TERMUX_PKG_BREAKS="libgnutls-dev"
+TERMUX_PKG_REPLACES="libgnutls-dev"
+TERMUX_PKG_BUILD_IN_SRC=true
 
-CFLAGS+=" -std=c99"
+TERMUX_PKG_EXTRA_CONFIGURE_ARGS="
+--enable-cxx
+--disable-hardware-acceleration
+--disable-openssl-compatibility
+--with-default-trust-store-file=$TERMUX_PREFIX/etc/tls/cert.pem
+--with-system-priority-file=${TERMUX_PREFIX}/etc/gnutls/default-priorities
+--with-included-libtasn1
+--enable-local-libopts
+--without-p11-kit
+--disable-guile
+--disable-doc
+"
+
+termux_step_pre_configure() {
+	CFLAGS+=" -DNO_INLINE_GETPASS=1"
+}

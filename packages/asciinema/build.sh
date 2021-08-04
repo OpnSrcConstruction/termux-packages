@@ -1,38 +1,30 @@
-# Go programs does not build on android-386
-# - will hopefully get fixed in go 1.6!
-# https://github.com/golang/go/issues/9327
 TERMUX_PKG_HOMEPAGE=https://asciinema.org/
 TERMUX_PKG_DESCRIPTION="Record and share your terminal sessions, the right way"
-TERMUX_PKG_VERSION=1.1.1
+TERMUX_PKG_LICENSE="GPL-3.0"
+TERMUX_PKG_MAINTAINER="@termux"
+TERMUX_PKG_VERSION=2.0.2
+TERMUX_PKG_REVISION=5
 TERMUX_PKG_SRCURL=https://github.com/asciinema/asciinema/archive/v${TERMUX_PKG_VERSION}.tar.gz
-TERMUX_PKG_FOLDERNAME=asciinema-${TERMUX_PKG_VERSION}
-TERMUX_PKG_BUILD_IN_SRC=yes
+TERMUX_PKG_SHA256=2578a1b5611e5375771ef6582a6533ef8d40cdbed1ba1c87786fd23af625ab68
+# ncurses-utils for tput which asciinema uses:
+TERMUX_PKG_DEPENDS="python, ncurses-utils"
+TERMUX_PKG_BUILD_IN_SRC=true
+TERMUX_PKG_PLATFORM_INDEPENDENT=true
+TERMUX_PKG_HAS_DEBUG=false
 
-termux_step_make () {
-	export GOOS=android
-	export GO_LDFLAGS="-extldflags=-pie"
-	export CGO_ENABLED=1
-	if [ "$TERMUX_ARCH" = "arm" ]; then
-		export GOARCH=arm
-		export GOARM=7
-	elif [ "$TERMUX_ARCH" = "i686" ]; then
-		export GOARCH=386
-		export GO386=sse2
-	else
-		echo "ERROR: Unsupported arch: $TERMUX_ARCH"
-		exit 1
-	fi
+_PYTHON_VERSION=3.9
 
-	export GOPATH=$TERMUX_PKG_TMPDIR
-	cd $GOPATH
-	mkdir -p src/github.com/asciinema/asciinema/
-	cp -Rf $TERMUX_PKG_SRCDIR/* src/github.com/asciinema/asciinema/
+TERMUX_PKG_RM_AFTER_INSTALL="
+lib/python${_PYTHON_VERSION}/site-packages/easy-install.pth
+lib/python${_PYTHON_VERSION}/site-packages/site.py
+lib/python${_PYTHON_VERSION}/site-packages/__pycache__
+"
+
+termux_step_make() {
+	return
 }
 
-termux_step_make_install () {
-	cd $GOPATH/src/github.com/asciinema/asciinema
-	export GOROOT=$HOME/lib/go/
-	export PATH=$GOROOT/bin:$PATH
-	PREFIX=$TERMUX_PREFIX make build
-	PREFIX=$TERMUX_PREFIX make install
+termux_step_make_install() {
+	export PYTHONPATH=$TERMUX_PREFIX/lib/python${_PYTHON_VERSION}/site-packages/
+	python${_PYTHON_VERSION} setup.py install --prefix=$TERMUX_PREFIX --force
 }
