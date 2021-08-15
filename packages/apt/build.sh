@@ -1,56 +1,63 @@
 TERMUX_PKG_HOMEPAGE=https://packages.debian.org/apt
 TERMUX_PKG_DESCRIPTION="Front-end for the dpkg package manager"
-TERMUX_PKG_DEPENDS="liblzma, libgnustl, dpkg, gnupg"
-TERMUX_PKG_VERSION=1.1.3
-TERMUX_PKG_BUILD_REVISION=4
+TERMUX_PKG_LICENSE="GPL-2.0"
+TERMUX_PKG_VERSION=1.4.9
+TERMUX_PKG_REVISION=15
 TERMUX_PKG_SRCURL=http://ftp.debian.org/debian/pool/main/a/apt/apt_${TERMUX_PKG_VERSION}.tar.xz
-TERMUX_PKG_EXTRA_CONFIGURE_ARGS="--host=${TERMUX_ARCH}-linux --disable-rpath acl_cv_rpath=$TERMUX_PREFIX/lib gt_cv_func_CFPreferencesCopyAppValue=no gt_cv_func_CFLocaleCopyCurrent=no ac_cv_c_bigendian=no --no-create"
-# When ready to drop bz2 support:
-TERMUX_PKG_EXTRA_CONFIGURE_ARGS+=" ac_cv_lib_bz2_BZ2_bzopen=no"
-TERMUX_PKG_FOLDERNAME=apt-${TERMUX_PKG_VERSION}
-TERMUX_PKG_ESSENTIAL=yes
+TERMUX_PKG_SHA256=d4d65e7c84da86f3e6dcc933bba46a08db429c9d933b667c864f5c0e880bac0d
+# apt-key requires utilities from coreutils, findutils, gpgv, grep, sed.
+TERMUX_PKG_DEPENDS="coreutils, dpkg, findutils, gpgv, grep, libc++, libcurl, liblzma, sed, termux-licenses, zlib"
+TERMUX_PKG_CONFLICTS="apt-transport-https"
+TERMUX_PKG_REPLACES="apt-transport-https"
+TERMUX_PKG_RECOMMENDS="game-repo, science-repo"
+TERMUX_PKG_SUGGESTS="unstable-repo"
+TERMUX_PKG_ESSENTIAL=true
 
-# $NDK/docs/STANDALONE-TOOLCHAIN.html: "If you use the GNU libstdc++, you will need to explicitly link with libsupc++ if you use these features"
-export LDFLAGS="$LDFLAGS -lgnustl_shared" # -lsupc++"
+TERMUX_PKG_CONFFILES="
+etc/apt/sources.list
+etc/apt/trusted.gpg
+"
 
-# Some files use STD*_FILENO without including <unistd.h> where they are declared.
-# Define them here to avoid having to patch files:
-CXXFLAGS+=" -DSTDIN_FILENO=0 -DSTDOUT_FILENO=1 -DSTDERR_FILENO=2 -DAI_IDN=0"
+TERMUX_PKG_EXTRA_CONFIGURE_ARGS="
+-DPERL_EXECUTABLE=$(which perl)
+-DCMAKE_INSTALL_FULL_LOCALSTATEDIR=$TERMUX_PREFIX
+-DCOMMON_ARCH=$TERMUX_ARCH
+-DDPKG_DATADIR=$TERMUX_PREFIX/share/dpkg
+-DUSE_NLS=OFF
+-DWITH_DOC=OFF
+"
 
-termux_step_pre_configure () {
-	cp $TERMUX_COMMON_CACHEDIR/config.{guess,sub} $TERMUX_PKG_SRCDIR/buildlib
-        perl -p -i -e "s/TERMUX_ARCH/$TERMUX_ARCH/" $TERMUX_PKG_SRCDIR/configure
+TERMUX_PKG_RM_AFTER_INSTALL="
+bin/apt-cdrom
+bin/apt-extracttemplates
+bin/apt-sortpkgs
+etc/apt/apt.conf.d
+lib/apt/apt-helper
+lib/apt/methods/bzip2
+lib/apt/methods/cdrom
+lib/apt/methods/mirror
+lib/apt/methods/rred
+lib/apt/planners/
+lib/apt/solvers/
+lib/dpkg/
+lib/libapt-inst.so
+"
 
-	rm $TERMUX_PKG_SRCDIR/apt-pkg/{cdrom.cc,indexcopy.cc}
+termux_step_pre_configure() {
+	# Certain packages are not safe to build on device because their
+	# build.sh script deletes specific files in $TERMUX_PREFIX.
+	if $TERMUX_ON_DEVICE_BUILD; then
+		termux_error_exit "Package '$TERMUX_PKG_NAME' is not safe for on-device builds."
+	fi
 }
 
-termux_step_post_configure () {
-        # This is needed to generate makefile, but does not work due to configure arguments not being remembered
-        ./config.status
-}
+termux_step_post_make_install() {
+	printf "# The main termux repository:\ndeb https://dl.bintray.com/termux/termux-packages-24 stable main\n" > $TERMUX_PREFIX/etc/apt/sources.list
+	cp $TERMUX_PKG_BUILDER_DIR/trusted.gpg $TERMUX_PREFIX/etc/apt/
+	rm $TERMUX_PREFIX/include/apt-pkg -r
 
-termux_step_make () {
-        unset CC
-        unset CFLAGS
-        unset LDFLAGS
-        unset CXX
-        unset CXXFLAGS
-        make
-}
-
-termux_step_make_install () {
-        cp $TERMUX_PKG_BUILDDIR/bin/apt{,-get,-cache,-config,-key} $TERMUX_PREFIX/bin/
-        cp $TERMUX_PKG_BUILDDIR/bin/libapt-{pkg.so.5.0.0,private.so.0.0} $TERMUX_PREFIX/lib/
-	(cd $TERMUX_PREFIX/lib; ln -s -f libapt-pkg.so.5.0.0 libapt-pkg.so.5.0; ln -s -f libapt-pkg.so.5.0.0 libapt-pkg.so )
-        mkdir -p $TERMUX_PREFIX/lib/apt/methods $TERMUX_PREFIX/share/man/man{5,8}
-        cp $TERMUX_PKG_BUILDDIR/docs/apt{,-cache,-get}.8 $TERMUX_PREFIX/share/man/man8/
-        cp $TERMUX_PKG_BUILDDIR/docs/{apt.conf,sources.list}.5 $TERMUX_PREFIX/share/man/man5/
-        cp $TERMUX_PKG_BUILDDIR/bin/methods/{copy,file,gpgv,gzip,http,https} $TERMUX_PREFIX/lib/apt/methods
-        (cd $TERMUX_PREFIX/lib/apt/methods; ln -f -s gzip xz)
-
-        mkdir -p $TERMUX_PREFIX/etc/apt
-        printf "# The main termux repository:\ndeb [arch=all,${TERMUX_ARCH}] http://apt.termux.com stable main\n" > $TERMUX_PREFIX/etc/apt/sources.list
-
-        # The trusted.gpg was created with "apt-key add public-key.key":
-        cp $TERMUX_PKG_BUILDER_DIR/trusted.gpg $TERMUX_PREFIX/etc/apt/
+	# apt-transport-tor
+	ln -sfr $TERMUX_PREFIX/lib/apt/methods/http $TERMUX_PREFIX/lib/apt/methods/tor
+	ln -sfr $TERMUX_PREFIX/lib/apt/methods/http $TERMUX_PREFIX/lib/apt/methods/tor+http
+	ln -sfr $TERMUX_PREFIX/lib/apt/methods/https $TERMUX_PREFIX/lib/apt/methods/tor+https
 }

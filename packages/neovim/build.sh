@@ -1,44 +1,45 @@
-TERMUX_PKG_HOMEPAGE=http://neovim.org/
+TERMUX_PKG_HOMEPAGE=https://neovim.io/
 TERMUX_PKG_DESCRIPTION="Ambitious Vim-fork focused on extensibility and agility (nvim)"
-TERMUX_PKG_VERSION=0.0.`date "+%Y%m%d%H%M"`
-TERMUX_PKG_SRCURL=https://github.com/neovim/neovim/archive/master.zip
-TERMUX_PKG_NO_SRC_CACHE=yes
-TERMUX_PKG_DEPENDS="libuv, libmsgpack, libandroid-support, libluajit, libvterm, libtermkey, libutil"
-TERMUX_PKG_FOLDERNAME="neovim-master"
+TERMUX_PKG_LICENSE="Apache-2.0"
+TERMUX_PKG_VERSION=0.3.8
+TERMUX_PKG_SHA256=953e134568d824dad7cbf32ee3114951732f9a750c462e430e6b593f418af76c
+TERMUX_PKG_SRCURL=https://github.com/neovim/neovim/archive/v${TERMUX_PKG_VERSION}.tar.gz
+TERMUX_PKG_DEPENDS="libiconv, libuv, libmsgpack, libandroid-support, libvterm, libtermkey, liblua, libunibilium"
 TERMUX_PKG_HOSTBUILD=true
 
-termux_step_host_build () {
+TERMUX_PKG_EXTRA_CONFIGURE_ARGS="
+-DENABLE_JEMALLOC=OFF
+-DGETTEXT_MSGFMT_EXECUTABLE=$(which msgfmt)
+-DGETTEXT_MSGMERGE_EXECUTABLE=$(which msgmerge)
+-DGPERF_PRG=$TERMUX_PKG_HOSTBUILD_DIR/deps/usr/bin/gperf
+-DLUA_PRG=$TERMUX_PKG_HOSTBUILD_DIR/deps/usr/bin/luajit
+-DPKG_CONFIG_EXECUTABLE=$(which pkg-config)
+-DXGETTEXT_PRG=$(which xgettext)
+-DPREFER_LUA=ON
+-DLUA_INCLUDE_DIR=$TERMUX_PREFIX/include
+"
+TERMUX_PKG_CONFFILES="share/nvim/sysinit.vim"
+
+termux_step_host_build() {
+	termux_setup_cmake
+
+	mkdir -p $TERMUX_PKG_HOSTBUILD_DIR/deps
+	cd $TERMUX_PKG_HOSTBUILD_DIR/deps
+	cmake $TERMUX_PKG_SRCDIR/third-party
+	make -j 1
+
 	cd $TERMUX_PKG_SRCDIR
-	make CMAKE_EXTRA_FLAGS="-DCMAKE_INSTALL_PREFIX:PATH=$TERMUX_PKG_HOSTBUILD_DIR" install
+	make CMAKE_EXTRA_FLAGS="-DCMAKE_INSTALL_PREFIX=$TERMUX_PKG_HOSTBUILD_DIR -DUSE_BUNDLED_LUAROCKS=ON" install
 	make distclean
 	rm -Rf build/
 }
 
-termux_step_configure () {
-	# Install dependencies on ubuntu:
-	# apt install lua-lpeg luarocks; luarocks install lpeg; luarocks install lua-MessagePack; luarocks install luabitop
-	cd $TERMUX_PKG_BUILDDIR
-	cmake -G "Unix Makefiles" .. \
-		-DCMAKE_AR=`which ${TERMUX_HOST_PLATFORM}-ar` \
-                -DCMAKE_BUILD_TYPE=MinSizeRel \
-		-DCMAKE_CROSSCOMPILING=True \
-		-DCMAKE_C_FLAGS="$CFLAGS $CPPFLAGS" \
-		-DCMAKE_CXX_FLAGS="$CXXFLAGS" \
-		-DCMAKE_FIND_ROOT_PATH=$TERMUX_PREFIX \
-		-DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY \
-		-DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY \
-		-DCMAKE_INSTALL_PREFIX=$TERMUX_PREFIX \
-		-DCMAKE_LINKER=`which ${TERMUX_HOST_PLATFORM}-ld` \
-                -DCMAKE_MAKE_PROGRAM=`which make` \
-		-DCMAKE_RANLIB=`which ${TERMUX_HOST_PLATFORM}-ranlib` \
-		-DCMAKE_SYSTEM_NAME=Linux \
-                -DLUA_PRG=`which lua` \
-                -DPKG_CONFIG_EXECUTABLE=$PKG_CONFIG \
-		$TERMUX_PKG_SRCDIR
+termux_step_pre_configure() {
+	TERMUX_PKG_EXTRA_CONFIGURE_ARGS+=" -DLUA_MATH_LIBRARY=$TERMUX_STANDALONE_TOOLCHAIN/sysroot/usr/lib/$TERMUX_HOST_PLATFORM/$TERMUX_PKG_API_LEVEL/libm.so"
 }
 
-termux_step_post_make_install () {
-	local _CONFIG_DIR=$TERMUX_PREFIX/etc/xdg/nvim
+termux_step_post_make_install() {
+	local _CONFIG_DIR=$TERMUX_PREFIX/share/nvim
 	mkdir -p $_CONFIG_DIR
-	cp $TERMUX_PKG_BUILDER_DIR/init.vim $_CONFIG_DIR/
+	cp $TERMUX_PKG_BUILDER_DIR/sysinit.vim $_CONFIG_DIR/
 }

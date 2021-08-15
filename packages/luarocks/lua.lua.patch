@@ -1,12 +1,11 @@
-diff -u -r ../luarocks-2.1.2/src/luarocks/fs/lua.lua ./src/luarocks/fs/lua.lua
---- ../luarocks-2.1.2/src/luarocks/fs/lua.lua	2014-01-10 20:03:04.000000000 +0100
-+++ ./src/luarocks/fs/lua.lua	2014-07-09 02:24:11.488380570 +0200
-@@ -74,7 +74,7 @@
-    assert(type(name) == "string")
-    name = dir.normalize(name)
+--- ./src/luarocks/fs/lua.lua.orig	2019-06-07 22:33:12.441995154 +0000
++++ ./src/luarocks/fs/lua.lua	2019-06-07 22:33:22.938066139 +0000
+@@ -259,7 +259,7 @@
+ end
  
--   local temp_dir = (os.getenv("TMP") or "/tmp") .. "/luarocks_" .. name:gsub(dir.separator, "_") .. "-" .. tostring(math.floor(math.random() * 10000))
-+   local temp_dir = (os.getenv("TMP") or "@TERMUX_PREFIX@/tmp") .. "/luarocks_" .. name:gsub(dir.separator, "_") .. "-" .. tostring(math.floor(math.random() * 10000))
-    local ok, err = fs.make_dir(temp_dir)
-    if ok then
-       return temp_dir
+ function fs_lua.system_temp_dir()
+-   return os.getenv("TMPDIR") or os.getenv("TEMP") or "/tmp"
++   return os.getenv("TMPDIR") or os.getenv("TEMP") or "@TERMUX_PREFIX@/tmp"
+ end
+ 
+ ---------------------------------------------------------------------

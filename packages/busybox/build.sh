@@ -1,38 +1,63 @@
-TERMUX_PKG_HOMEPAGE=http://www.busybox.net/
+TERMUX_PKG_HOMEPAGE=https://busybox.net/
 TERMUX_PKG_DESCRIPTION="Tiny versions of many common UNIX utilities into a single small executable"
-TERMUX_PKG_ESSENTIAL=yes
-TERMUX_PKG_VERSION=1.24.1
-TERMUX_PKG_SRCURL=http://www.busybox.net/downloads/busybox-${TERMUX_PKG_VERSION}.tar.bz2
-TERMUX_PKG_BUILD_IN_SRC=yes
+TERMUX_PKG_LICENSE="GPL-2.0"
+TERMUX_PKG_VERSION=1.30.1
+TERMUX_PKG_REVISION=9
+TERMUX_PKG_SRCURL=https://busybox.net/downloads/busybox-${TERMUX_PKG_VERSION}.tar.bz2
+TERMUX_PKG_SHA256=3d1d04a4dbd34048f4794815a5c48ebb9eb53c5277e09ffffc060323b95dfbdc
+TERMUX_PKG_BUILD_IN_SRC=true
+# We replace env in the old coreutils package:
+TERMUX_PKG_CONFLICTS="coreutils (<< 8.25-4)"
+TERMUX_PKG_CONFFILES="var/service/telnetd/run var/service/telnetd/log/run var/service/ftpd/run var/service/ftpd/log/run"
 
-# NOTE: sed on mac does not work for building busybox, install gsed and symlink sed => gsed
+termux_step_pre_configure() {
+	# Certain packages are not safe to build on device because their
+	# build.sh script deletes specific files in $TERMUX_PREFIX.
+	if $TERMUX_ON_DEVICE_BUILD; then
+		termux_error_exit "Package '$TERMUX_PKG_NAME' is not safe for on-device builds."
+	fi
 
-CFLAGS+=" -llog -DTERMUX_EXPOSE_MEMPCPY=1" # Android system liblog.so for syslog
+	CFLAGS+=" -llog" # Android system liblog.so for syslog
+}
 
-termux_step_configure () {
-	# Bug in gold linker with busybox in android r10e:
-	# https://sourceware.org/ml/binutils/2015-02/msg00386.html
-	CFLAGS+=" -fuse-ld=bfd"
-	LD+=.bfd
-
+termux_step_configure() {
 	cp $TERMUX_PKG_BUILDER_DIR/busybox.config .config
 	echo "CONFIG_SYSROOT=\"$TERMUX_STANDALONE_TOOLCHAIN/sysroot\"" >> .config
 	echo "CONFIG_PREFIX=\"$TERMUX_PREFIX\"" >> .config
 	echo "CONFIG_CROSS_COMPILER_PREFIX=\"${TERMUX_HOST_PLATFORM}-\"" >> .config
 	echo "CONFIG_FEATURE_CROND_DIR=\"$TERMUX_PREFIX/var/spool/cron\"" >> .config
+	echo "CONFIG_SV_DEFAULT_SERVICE_DIR=\"$TERMUX_PREFIX/var/service\"" >> .config
 	make oldconfig
 }
 
-termux_step_post_make_install () {
-	# Create symlinks in $PREFIX/bin/applets to $PREFIX/bin/busybox
+termux_step_post_make_install() {
+	if $TERMUX_DEBUG; then
+		install -Dm700 busybox_unstripped $PREFIX/bin/busybox
+	fi
+
+	# Utilities diff, mv, rm, rmdir are necessary to assist with package upgrading
+	# after https://github.com/termux/termux-packages/issues/4070.
+	#
+	# Other utilities (like crond/crontab) are useful but not available
+	# as standalone package in Termux.
+	#
+	# Few notes:
+	#
+	#  * runsv, runsvdir, sv - for things like in https://github.com/termux/termux-packages/pull/3460.
+	#  * tcpsvd - required for ftpd applet.
+	#  * vi - replaced by vim, but it still good to have basic text editor in bootstrap.
+	#  * which - replaced by debianutils, but still good to have in bootstrap.
+	#
 	rm -Rf $TERMUX_PREFIX/bin/applets
 	mkdir -p $TERMUX_PREFIX/bin/applets
 	cd $TERMUX_PREFIX/bin/applets
-	for f in `cat $TERMUX_PKG_SRCDIR/busybox.links`; do ln -s ../busybox `basename $f`; done
-
-	cd $TERMUX_PREFIX/bin
-	rm -f ash
-	ln -s busybox ash
+	for f in crond crontab diff ftpd ftpget ftpput hostname inotifyd \
+		iostat lsof lsusb mpstat mv nmeter rm rmdir runsv runsvdir \
+		sendmail start-stop-daemon sv svlogd tcpsvd uptime usleep \
+		vi which; do
+		ln -s ../busybox $f
+	done
+	unset f
 
 	# Install busybox man page
 	mkdir -p $TERMUX_PREFIX/share/man/man1
@@ -42,5 +67,18 @@ termux_step_post_make_install () {
 	local _CRONTABS=$TERMUX_PREFIX/var/spool/cron/crontabs
 	mkdir -p $_CRONTABS
 	echo "Used by the busybox crontab and crond tools" > $_CRONTABS/README.termux
+
+	# Setup some services
+	mkdir -p $TERMUX_PREFIX/var/service
+	cd $TERMUX_PREFIX/var/service
+	mkdir -p ftpd/log telnetd/log
+	echo "#!$TERMUX_PREFIX/bin/sh" > ftpd/run
+	echo 'exec busybox tcpsvd -vE 0.0.0.0 8021 ftpd /data/data/com.termux/files/home' >> ftpd/run
+	echo "#!$TERMUX_PREFIX/bin/sh" > telnetd/run
+	echo 'exec busybox telnetd -F' >> telnetd/run
+	chmod +x */run
+	touch telnetd/down ftpd/down
+	ln -sf $PREFIX/share/termux-services/svlogger telnetd/log/run
+	ln -sf $PREFIX/share/termux-services/svlogger ftpd/log/run
 }
 

@@ -1,3 +1,0 @@
-#!/bin/sh
-
-@TERMUX_API@ TextToSpeech --es engine LIST_AVAILABLE

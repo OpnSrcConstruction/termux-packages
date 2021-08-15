@@ -1,51 +1,53 @@
-diff -u -r ../apt-1.1.3/cmdline/apt-key.in ./cmdline/apt-key.in
---- ../apt-1.1.3/cmdline/apt-key.in	2015-11-30 03:08:24.000000000 -0500
-+++ ./cmdline/apt-key.in	2015-12-03 21:22:35.231730185 -0500
-@@ -19,10 +19,7 @@
+diff -uNr apt-1.4.8/cmdline/apt-key.in apt-1.4.8.mod/cmdline/apt-key.in
+--- apt-1.4.8/cmdline/apt-key.in	2017-09-13 19:47:33.000000000 +0300
++++ apt-1.4.8.mod/cmdline/apt-key.in	2018-06-19 18:18:43.024583291 +0300
+@@ -16,10 +16,7 @@
  aptkey_echo() { echo "$@"; }
  
  requires_root() {
 -	if [ "$(id -u)" -ne 0 ]; then
--		echo >&2 "ERROR: This command can only be used by root."
+-		apt_error "This command can only be used by root."
 -		exit 1
 -	fi
-+	continue
++continue
  }
  
- get_fingerprints_of_keyring() {
-@@ -212,7 +209,7 @@
- 	if [ -s "$TRUSTEDFILE" ]; then
+ command_available() {
+@@ -260,7 +257,7 @@
+ 	if accessible_file_exists "$TRUSTEDFILE"; then
  	    $ACTION "$TRUSTEDFILE" "$@"
  	fi
 -	local TRUSTEDPARTS="/etc/apt/trusted.gpg.d"
 +	local TRUSTEDPARTS="@TERMUX_PREFIX@/etc/apt/trusted.gpg.d"
- 	eval $(apt-config shell TRUSTEDPARTS Dir::Etc::TrustedParts/d)
+ 	eval "$(apt-config shell TRUSTEDPARTS Dir::Etc::TrustedParts/d)"
  	if [ -d "$TRUSTEDPARTS" ]; then
- 	    # strip / suffix as gpg will double-slash in that case (#665411)
-@@ -282,11 +279,11 @@
-     # if a --keyring was given, just use this one
-     if [ -n "$FORCED_KEYRING" ]; then
- 	if [ -s "$FORCED_KEYRING" ]; then
--	    cp --dereference "$FORCED_KEYRING" "$PUBRING"
-+	    cp "$FORCED_KEYRING" "$PUBRING"
+ 	    TRUSTEDPARTS="$(readlink -f "$TRUSTEDPARTS")"
+@@ -439,7 +436,7 @@
+ 	merge_all_trusted_keyrings_into_pubring
+ 	FORCED_KEYRING="${GPGHOMEDIR}/forcedkeyid.gpg"
+ 	TRUSTEDFILE="${FORCED_KEYRING}"
+-	echo "#!/bin/sh
++	echo "#!@TERMUX_PREFIX@/bin/sh
+ exec sh '($(escape_shell "${GPG}")' --keyring '$(escape_shell "${TRUSTEDFILE}")' \"\$@\"" > "${GPGHOMEDIR}/gpg.1.sh"
+ 	GPG="${GPGHOMEDIR}/gpg.1.sh"
+ 	# ignore error as this "just" means we haven't found the forced keyid and the keyring will be empty
+@@ -451,13 +448,13 @@
+ 	else
+ 	   touch "${GPGHOMEDIR}/pubring.gpg" "${GPGHOMEDIR}/pubring.orig.gpg"
  	fi
+-	echo "#!/bin/sh
++	echo "#!@TERMUX_PREFIX@/bin/sh
+ exec sh '$(escape_shell "${GPG}")' --keyring '$(escape_shell "${GPGHOMEDIR}/pubring.gpg")' \"\$@\"" > "${GPGHOMEDIR}/gpg.1.sh"
+ 	GPG="${GPGHOMEDIR}/gpg.1.sh"
      else
- 	# otherwise all known keyrings are merged
--	local TRUSTEDPARTS="/etc/apt/trusted.gpg.d"
-+	local TRUSTEDPARTS="@TERMUX_PREFIX@/etc/apt/trusted.gpg.d"
- 	eval $(apt-config shell TRUSTEDPARTS Dir::Etc::TrustedParts/d)
- 	if [ -d "$TRUSTEDPARTS" ]; then
- 	    # ignore errors mostly for non-existing $TRUSTEDFILE
-@@ -297,7 +294,7 @@
- 	       done
- 	    } > "$PUBRING" 2>/dev/null
- 	elif [ -s "$TRUSTEDFILE" ]; then
--	    cp --dereference "$TRUSTEDFILE" "$PUBRING"
-+	    cp "$TRUSTEDFILE" "$PUBRING"
- 	fi
+ 	TRUSTEDFILE="$(dearmor_filename "$FORCED_KEYRING")"
+ 	create_new_keyring "$TRUSTEDFILE"
+-	echo "#!/bin/sh
++	echo "#!@TERMUX_PREFIX@/bin/sh
+ exec sh '$(escape_shell "${GPG}")' --keyring '$(escape_shell "${TRUSTEDFILE}")' \"\$@\"" > "${GPGHOMEDIR}/gpg.1.sh"
+ 	GPG="${GPGHOMEDIR}/gpg.1.sh"
      fi
- 
-@@ -441,7 +438,7 @@
+@@ -542,7 +539,7 @@
  done
  
  if [ -z "$TRUSTEDFILE" ]; then
@@ -54,3 +56,22 @@ diff -u -r ../apt-1.1.3/cmdline/apt-key.in ./cmdline/apt-key.in
     eval $(apt-config shell TRUSTEDFILE Apt::GPGV::TrustedKeyring)
     eval $(apt-config shell TRUSTEDFILE Dir::Etc::Trusted/f)
  fi
+@@ -612,7 +609,8 @@
+ 	    unset TMPDIR
+ 	fi
+     fi
+-    GPGHOMEDIR="$(mktemp --directory --tmpdir 'apt-key-gpghome.XXXXXXXXXX')"
++    # Use short options as busybox mktemp does not support long ones:
++    GPGHOMEDIR="$(mktemp -d -t 'apt-key-gpghome.XXXXXXXXXX')"
+     CURRENTTRAP="${CURRENTTRAP} cleanup_gpg_home;"
+     trap "${CURRENTTRAP}" 0 HUP INT QUIT ILL ABRT FPE SEGV PIPE TERM
+     if [ -z "$GPGHOMEDIR" ]; then
+@@ -654,7 +652,7 @@
+     create_gpg_home
+ 
+     # now tell gpg that it shouldn't try to maintain this trustdb file
+-    echo "#!/bin/sh
++    echo "#!@TERMUX_PREFIX@/bin/sh
+ exec '$(escape_shell "${GPG_EXE}")' --ignore-time-conflict --no-options --no-default-keyring \\
+ --homedir '$(escape_shell "${GPGHOMEDIR}")' --no-auto-check-trustdb --trust-model always \"\$@\"" > "${GPGHOMEDIR}/gpg.0.sh"
+     GPG_SH="${GPGHOMEDIR}/gpg.0.sh"
