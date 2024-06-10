@@ -1,6 +1,6 @@
 termux_setup_meson() {
 	termux_setup_ninja
-	local MESON_VERSION=0.56.0
+	local MESON_VERSION=1.2.2
 	local MESON_FOLDER
 
 	if [ "${TERMUX_PACKAGES_OFFLINE-false}" = "true" ]; then
@@ -16,14 +16,15 @@ termux_setup_meson() {
 		termux_download \
 			"https://github.com/mesonbuild/meson/releases/download/$MESON_VERSION/meson-$MESON_VERSION.tar.gz" \
 			"$MESON_TAR_FILE" \
-			291dd38ff1cd55fcfca8fc985181dd39be0d3e5826e5f0013bf867be40117213
+			4a0f04de331fbc7af3b802a844fc8838f4ccd1ded1e792ba4f8f2faf8c5fe4d6
 		tar xf "$MESON_TAR_FILE" -C "$TERMUX_PKG_TMPDIR"
-		# Avoid meson stripping away DT_RUNPATH, see
-		# (https://github.com/NetBSD/pkgsrc/commit/2fb2c013715a6374b4e2d1f8e9f2143e827f0f64
-		# and https://github.com/mesonbuild/meson/issues/314):
-		perl -p -i -e 's/self.fix_rpathtype_entry\(new_rpath, DT_RUNPATH\)//' \
-			$MESON_TMP_FOLDER/mesonbuild/scripts/depfixer.py
-
+		shopt -s nullglob
+		local f
+		for f in "$TERMUX_SCRIPTDIR"/scripts/build/setup/meson-*.patch; do
+			echo "[${FUNCNAME[0]}]: Applying $(basename "$f")"
+			patch --silent -p1 -d "$MESON_TMP_FOLDER" < "$f"
+		done
+		shopt -u nullglob
 		mv "$MESON_TMP_FOLDER" "$MESON_FOLDER"
 	fi
 	TERMUX_MESON="$MESON_FOLDER/meson.py"
@@ -39,7 +40,7 @@ termux_setup_meson() {
 		MESON_CPU_FAMILY="x86_64"
 		MESON_CPU="x86_64"
 	elif [ "$TERMUX_ARCH" = "aarch64" ]; then
-		MESON_CPU_FAMILY="arm"
+		MESON_CPU_FAMILY="aarch64"
 		MESON_CPU="aarch64"
 	else
 		termux_error_exit "Unsupported arch: $TERMUX_ARCH"
@@ -49,14 +50,20 @@ termux_setup_meson() {
 	echo "[binaries]" > $TERMUX_MESON_CROSSFILE
 	echo "ar = '$AR'" >> $TERMUX_MESON_CROSSFILE
 	echo "c = '$CC'" >> $TERMUX_MESON_CROSSFILE
+	echo "cmake = 'cmake'" >> $TERMUX_MESON_CROSSFILE
 	echo "cpp = '$CXX'" >> $TERMUX_MESON_CROSSFILE
 	echo "ld = '$LD'" >> $TERMUX_MESON_CROSSFILE
 	echo "pkgconfig = '$PKG_CONFIG'" >> $TERMUX_MESON_CROSSFILE
 	echo "strip = '$STRIP'" >> $TERMUX_MESON_CROSSFILE
 
+	if [ "$TERMUX_PACKAGE_LIBRARY" = "bionic" ]; then
+		echo '' >> $TERMUX_MESON_CROSSFILE
+		echo "[properties]" >> $TERMUX_MESON_CROSSFILE
+		echo "needs_exe_wrapper = true" >> $TERMUX_MESON_CROSSFILE
+  	fi
+
 	echo '' >> $TERMUX_MESON_CROSSFILE
-	echo "[properties]" >> $TERMUX_MESON_CROSSFILE
-	echo "needs_exe_wrapper = true" >> $TERMUX_MESON_CROSSFILE
+	echo "[built-in options]" >> $TERMUX_MESON_CROSSFILE
 
 	echo -n "c_args = [" >> $TERMUX_MESON_CROSSFILE
 	local word first=true
@@ -102,5 +109,9 @@ termux_setup_meson() {
 	echo "cpu_family = '$MESON_CPU_FAMILY'" >> $TERMUX_MESON_CROSSFILE
 	echo "cpu = '$MESON_CPU'" >> $TERMUX_MESON_CROSSFILE
 	echo "endian = 'little'" >> $TERMUX_MESON_CROSSFILE
-	echo "system = 'android'" >> $TERMUX_MESON_CROSSFILE
+ 	if [ "$TERMUX_PACKAGE_LIBRARY" = "bionic" ]; then
+		echo "system = 'android'" >> $TERMUX_MESON_CROSSFILE
+  	elif [ "$TERMUX_PACKAGE_LIBRARY" = "glibc" ]; then
+		echo "system = 'linux'" >> $TERMUX_MESON_CROSSFILE
+     	fi
 }

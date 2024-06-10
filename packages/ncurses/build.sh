@@ -2,19 +2,31 @@ TERMUX_PKG_HOMEPAGE=https://invisible-island.net/ncurses/
 TERMUX_PKG_DESCRIPTION="Library for text-based user interfaces in a terminal-independent manner"
 TERMUX_PKG_LICENSE="MIT"
 TERMUX_PKG_MAINTAINER="@termux"
-TERMUX_PKG_VERSION=(6.2.20200725
-		    9.26
+# This references a commit in https://github.com/ThomasDickey/ncurses-snapshots, specifically
+# https://github.com/ThomasDickey/ncurses-snapshots/commit/${_SNAPSHOT_COMMIT}
+# Check the commit description to see which version a commit belongs to - correct version
+# is checked in termux_step_pre_configure(), so the build will fail on a mistake.
+# Using this simplifies things (no need to avoid downloading and applying patches manually),
+# and uses github is a high available hosting.
+_SNAPSHOT_COMMIT=8bd5a3d98fc741bdcc9e5fada1a3d5980e1ea22a
+TERMUX_PKG_VERSION=(6.4.20231001
+		    9.31
 		    15
-		    0.20.3)
-TERMUX_PKG_REVISION=4
-TERMUX_PKG_SRCURL=(https://github.com/termux/distfiles/releases/download/2021.01.04/ncurses-${TERMUX_PKG_VERSION:0:3}-${TERMUX_PKG_VERSION:4}.tgz
+		    0.31.0
+		    0.11.0)
+TERMUX_PKG_REVISION=3
+TERMUX_PKG_SRCURL=(https://github.com/ThomasDickey/ncurses-snapshots/archive/${_SNAPSHOT_COMMIT}.tar.gz
 		   https://fossies.org/linux/misc/rxvt-unicode-${TERMUX_PKG_VERSION[1]}.tar.bz2
 		   https://github.com/thestinger/termite/archive/v${TERMUX_PKG_VERSION[2]}.tar.gz
-		   https://github.com/kovidgoyal/kitty/archive/v${TERMUX_PKG_VERSION[3]}.tar.gz)
-TERMUX_PKG_SHA256=(05da39f964643b595bfdb874e52eabfd407c02d8fbed35602040735f4af9b09d
-		   643116b9a25d29ad29f4890131796d42e6d2d21312282a613ef66c80c5b8c98b
+		   https://github.com/kovidgoyal/kitty/releases/download/v${TERMUX_PKG_VERSION[3]}/kitty-${TERMUX_PKG_VERSION[3]}.tar.xz
+		   https://github.com/alacritty/alacritty/archive/refs/tags/v${TERMUX_PKG_VERSION[4]}.tar.gz)
+TERMUX_PKG_SHA256=(ca4a28ed4d38a7b79e1cd883e3d2755839072a7e4fe8cf265be1ef4ae79b6bc2
+		   aaa13fcbc149fe0f3f391f933279580f74a96fd312d6ed06b8ff03c2d46672e8
 		   3ae9ebef28aad081c6c11351f086776e2fd9547563b2f900732b41c376bec05a
-		   7048cc0e6c17fe5ef3fbac18125dbd5f05d6c628838f004b8e2ad3546fb77d85)
+		   d122497134abab8e25dfcb6b127af40cfe641980e007f696732f70ed298198f5
+		   0fb3370c662f5b87d1b9a487aef999195212b192e08f6f68a572fed8fd637e07)
+TERMUX_PKG_AUTO_UPDATE=false
+
 # ncurses-utils: tset/reset/clear are moved to package 'ncurses'.
 TERMUX_PKG_BREAKS="ncurses-dev, ncurses-utils (<< 6.1.20190511-4)"
 TERMUX_PKG_REPLACES="ncurses-dev, ncurses-utils (<< 6.1.20190511-4)"
@@ -22,6 +34,7 @@ TERMUX_PKG_REPLACES="ncurses-dev, ncurses-utils (<< 6.1.20190511-4)"
 # --disable-stripping to disable -s argument to install which does not work when cross compiling:
 TERMUX_PKG_EXTRA_CONFIGURE_ARGS="
 ac_cv_header_locale_h=no
+am_cv_langinfo_codeset=no
 --disable-stripping
 --enable-const
 --enable-ext-colors
@@ -36,6 +49,7 @@ ac_cv_header_locale_h=no
 --without-debug
 --without-tests
 --with-normal
+--with-pkg-config-libdir=$TERMUX_PREFIX/lib/pkgconfig
 --with-static
 --with-shared
 --with-termpath=$TERMUX_PREFIX/etc/termcap:$TERMUX_PREFIX/share/misc/termcap
@@ -47,7 +61,13 @@ share/man/man7
 "
 
 termux_step_pre_configure() {
-	TERMUX_PKG_EXTRA_CONFIGURE_ARGS+=" --with-pkg-config-libdir=$PKG_CONFIG_LIBDIR"
+	MAIN_VERSION=$(cut -f 2 VERSION)
+	PATCH_VERSION=$(cut -f 3 VERSION)
+	ACTUAL_VERSION=${MAIN_VERSION}.${PATCH_VERSION}
+	EXPECTED_VERSION=${TERMUX_PKG_VERSION[0]}
+	if [ "${ACTUAL_VERSION}" != "${EXPECTED_VERSION}"]; then
+		termux_error_exit "Version mismatch - expected ${EXPECTED_VERSION}, was ${ACTUAL_VERSION}. Check https://github.com/ThomasDickey/ncurses-snapshots/commit/${_SNAPSHOT_COMMIT}"
+	fi
 	export CPPFLAGS+=" -fPIC"
 }
 
@@ -72,22 +92,14 @@ termux_step_post_make_install() {
 		(cd pkgconfig; ln -sfr ncursesw.pc ${lib}.pc)
 	done
 
-	# Some packages want these:
-	cd $TERMUX_PREFIX/include/
-	rm -Rf ncurses{,w}
-	mkdir ncurses{,w}
-	ln -s ../{ncurses.h,termcap.h,panel.h,unctrl.h,menu.h,form.h,tic.h,nc_tparm.h,term.h,eti.h,term_entry.h,ncurses_dll.h,curses.h} ncurses
-	ln -s ../{ncurses.h,termcap.h,panel.h,unctrl.h,menu.h,form.h,tic.h,nc_tparm.h,term.h,eti.h,term_entry.h,ncurses_dll.h,curses.h} ncursesw
-}
-
-termux_step_post_massage() {
 	# Strip away 30 years of cruft to decrease size.
-	local TI=$TERMUX_PKG_MASSAGEDIR/$TERMUX_PREFIX/share/terminfo
+	local TI=$TERMUX_PREFIX/share/terminfo
 	mv $TI $TERMUX_PKG_TMPDIR/full-terminfo
-	mkdir -p $TI/{a,d,e,n,k,l,p,r,s,t,v,x}
+	mkdir -p $TI/{a,d,e,g,n,k,l,p,r,s,t,v,x}
 	cp $TERMUX_PKG_TMPDIR/full-terminfo/a/ansi $TI/a/
 	cp $TERMUX_PKG_TMPDIR/full-terminfo/d/{dtterm,dumb} $TI/d/
 	cp $TERMUX_PKG_TMPDIR/full-terminfo/e/eterm-color $TI/e/
+	cp $TERMUX_PKG_TMPDIR/full-terminfo/g/gnome{,-256color} $TI/g/
 	cp $TERMUX_PKG_TMPDIR/full-terminfo/n/nsterm $TI/n/
 	cp $TERMUX_PKG_TMPDIR/full-terminfo/k/kitty{,+common,-direct} $TI/k/
 	cp $TERMUX_PKG_TMPDIR/full-terminfo/l/linux $TI/l/
@@ -101,4 +113,18 @@ termux_step_post_massage() {
 	tic -x -o $TI $TERMUX_PKG_SRCDIR/rxvt-unicode-${TERMUX_PKG_VERSION[1]}/doc/etc/rxvt-unicode.terminfo
 	tic -x -o $TI $TERMUX_PKG_SRCDIR/termite-${TERMUX_PKG_VERSION[2]}/termite.terminfo
 	tic -x -o $TI $TERMUX_PKG_SRCDIR/kitty-${TERMUX_PKG_VERSION[3]}/terminfo/kitty.terminfo
+	tic -x -o $TI $TERMUX_PKG_SRCDIR/alacritty-${TERMUX_PKG_VERSION[4]}/extra/alacritty.info
+}
+
+termux_step_post_massage() {
+	# Some packages want these:
+	cd "$TERMUX_PKG_MASSAGEDIR/$TERMUX_PREFIX/include" || exit 1
+	rm -Rf ncurses{,w}
+	mkdir ncurses{,w}
+
+	local _file
+	for _file in *.h; do
+		ln -s ../$_file ncurses
+		ln -s ../$_file ncursesw
+	done
 }

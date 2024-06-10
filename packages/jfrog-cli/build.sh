@@ -1,11 +1,11 @@
 TERMUX_PKG_HOMEPAGE=https://jfrog.com/getcli
-TERMUX_PKG_DESCRIPTION="A CLI for JFrog products."
+TERMUX_PKG_DESCRIPTION="A CLI for JFrog products"
 TERMUX_PKG_LICENSE="Apache-2.0"
 TERMUX_PKG_MAINTAINER="@termux"
-TERMUX_PKG_VERSION=2.1.1
+TERMUX_PKG_VERSION="2.52.10"
 TERMUX_PKG_SRCURL=https://github.com/jfrog/jfrog-cli/archive/v$TERMUX_PKG_VERSION.tar.gz
-TERMUX_PKG_SHA256=8e5378ad01471a3a030d9f6b2bc01468465b5e0e25009dab2d401cb5d2c4b36c
-TERMUX_PKG_DEPENDS="libc++"
+TERMUX_PKG_SHA256=c5072ad254852921f007e7591afaee3d89a09919ed4c8fb2e492a1c7f1215672
+TERMUX_PKG_AUTO_UPDATE=true
 
 termux_step_make() {
 	termux_setup_golang
@@ -34,7 +34,10 @@ termux_step_make() {
 termux_step_make_install() {
 	mkdir -p $TERMUX_PREFIX/share/bash-completion/completions
 	export JFROG_CLI_HOME_DIR=$TERMUX_PKG_BUILDDIR/.jfrog
-	$TERMUX_PKG_BUILDDIR/jfrog completion bash
-	cp $TERMUX_PKG_BUILDDIR/.jfrog/jfrog_bash_completion $TERMUX_PREFIX/share/bash-completion/completions/jfrog
+	mkdir -p $JFROG_CLI_HOME_DIR
+	$TERMUX_PKG_BUILDDIR/jfrog completion bash \
+		> $JFROG_CLI_HOME_DIR/jfrog_bash_completion
+	cp $JFROG_CLI_HOME_DIR/jfrog_bash_completion \
+		$TERMUX_PREFIX/share/bash-completion/completions/jfrog
 
 }

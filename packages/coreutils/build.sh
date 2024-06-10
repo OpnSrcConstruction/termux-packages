@@ -2,10 +2,9 @@ TERMUX_PKG_HOMEPAGE=https://www.gnu.org/software/coreutils/
 TERMUX_PKG_DESCRIPTION="Basic file, shell and text manipulation utilities from the GNU project"
 TERMUX_PKG_LICENSE="GPL-3.0"
 TERMUX_PKG_MAINTAINER="@termux"
-TERMUX_PKG_VERSION=8.32
-TERMUX_PKG_REVISION=8
+TERMUX_PKG_VERSION=9.4
 TERMUX_PKG_SRCURL=https://mirrors.kernel.org/gnu/coreutils/coreutils-${TERMUX_PKG_VERSION}.tar.xz
-TERMUX_PKG_SHA256=4458d8de7849df44ccab15e16b1548b285224dbba5f08fac070c1c0e0bcc4cfa
+TERMUX_PKG_SHA256=ea613a4cf44612326e917201bbbcdfbd301de21ffc3b59b6e5c07e040b275e52
 TERMUX_PKG_DEPENDS="libandroid-support, libgmp, libiconv"
 TERMUX_PKG_BREAKS="chroot, busybox (<< 1.30.1-4)"
 TERMUX_PKG_REPLACES="chroot, busybox (<< 1.30.1-4)"
@@ -26,6 +25,11 @@ ac_cv_func_getpass=yes
 "
 
 termux_step_pre_configure() {
+	# https://android.googlesource.com/platform/bionic/+/master/docs/32-bit-abi.md#is-32_bit-on-lp32-y2038
+	if [ $TERMUX_ARCH_BITS = 32 ]; then
+		TERMUX_PKG_EXTRA_CONFIGURE_ARGS+=" --disable-year2038"
+	fi
+
 	CPPFLAGS+=" -D__USE_FORTIFY_LEVEL=0"
 
 	# On device build is unsupported as it removes utility 'ln' (and maybe

@@ -1,20 +1,46 @@
 TERMUX_PKG_HOMEPAGE=https://gstreamer.freedesktop.org/
 TERMUX_PKG_DESCRIPTION="GStreamer Bad Plug-ins"
-TERMUX_PKG_LICENSE="LGPL-2.0"
+TERMUX_PKG_LICENSE="LGPL-2.1"
 TERMUX_PKG_MAINTAINER="@termux"
-TERMUX_PKG_VERSION=1.18.4
+TERMUX_PKG_VERSION="1.22.9"
 TERMUX_PKG_SRCURL=https://gstreamer.freedesktop.org/src/gst-plugins-bad/gst-plugins-bad-${TERMUX_PKG_VERSION}.tar.xz
-TERMUX_PKG_SHA256=74e806bc5595b18c70e9ca93571e27e79dfb808e5d2e7967afa952b52e99c85f
-TERMUX_PKG_DEPENDS="gst-plugins-base, libbz2, libcurl, libiconv, libpng, librsvg, libssh2, libsndfile, libx264, libx265, littlecms, openal-soft, openjpeg"
+TERMUX_PKG_SHA256=1bc65d0fd5f53a3636564efd3fcf318c3edcdec39c4109a503c1fc8203840a1d
+TERMUX_PKG_AUTO_UPDATE=true
+TERMUX_PKG_DEPENDS="game-music-emu, glib, gst-plugins-base, gstreamer, libaom, libass, libbz2, libcairo, libcurl, libopus, librsvg, libsndfile, libsrt, libx11, libxml2, littlecms, openal-soft, openjpeg, openssl, pango"
+TERMUX_PKG_BUILD_DEPENDS="glib-cross"
 TERMUX_PKG_BREAKS="gst-plugins-bad-dev"
 TERMUX_PKG_REPLACES="gst-plugins-bad-dev"
 TERMUX_PKG_EXTRA_CONFIGURE_ARGS="
 -Dandroidmedia=disabled
 -Dexamples=disabled
 -Drtmp=disabled
+-Dshm=disabled
 -Dtests=disabled
 -Dzbar=disabled
 -Dwebp=disabled
 -Dvulkan=disabled
 -Dhls-crypto=openssl
 "
+
+termux_step_configure() {
+	termux_setup_meson
+	sed -i "2i glib-mkenums = '${TERMUX_PREFIX}/opt/glib/cross/bin/glib-mkenums'" $TERMUX_MESON_CROSSFILE
+
+	local _meson_buildtype="minsize"
+	local _meson_stripflag="--strip"
+	if [ "$TERMUX_DEBUG_BUILD" = "true" ]; then
+		_meson_buildtype="debug"
+		_meson_stripflag=
+	fi
+
+	CC=gcc CXX=g++ CFLAGS= CXXFLAGS= CPPFLAGS= LDFLAGS= $TERMUX_MESON \
+		$TERMUX_PKG_SRCDIR \
+		$TERMUX_PKG_BUILDDIR \
+		--cross-file $TERMUX_MESON_CROSSFILE \
+		--prefix $TERMUX_PREFIX \
+		--libdir lib \
+		--buildtype ${_meson_buildtype} \
+		${_meson_stripflag} \
+		$TERMUX_PKG_EXTRA_CONFIGURE_ARGS \
+		|| (termux_step_configure_meson_failure_hook && false)
+}

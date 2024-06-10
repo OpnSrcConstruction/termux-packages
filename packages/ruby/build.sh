@@ -2,19 +2,19 @@ TERMUX_PKG_HOMEPAGE=https://www.ruby-lang.org/
 TERMUX_PKG_DESCRIPTION="Dynamic programming language with a focus on simplicity and productivity"
 TERMUX_PKG_LICENSE="BSD 2-Clause"
 TERMUX_PKG_MAINTAINER="@termux"
-TERMUX_PKG_VERSION=3.0.2
-TERMUX_PKG_REVISION=3
-TERMUX_PKG_SRCURL=https://cache.ruby-lang.org/pub/ruby/${TERMUX_PKG_VERSION:0:3}/ruby-${TERMUX_PKG_VERSION}.tar.xz
-TERMUX_PKG_SHA256=570e7773100f625599575f363831166d91d49a1ab97d3ab6495af44774155c40
+# Packages which should be rebuilt after "minor" bump (e.g. 3.1.x to 3.2.0):
+# - asciidoctor
+# - weechat
+TERMUX_PKG_VERSION=3.2.2
+TERMUX_PKG_SRCURL=https://cache.ruby-lang.org/pub/ruby/$(echo $TERMUX_PKG_VERSION | cut -d . -f 1-2)/ruby-${TERMUX_PKG_VERSION}.tar.xz
+TERMUX_PKG_SHA256=4b352d0f7ec384e332e3e44cdbfdcd5ff2d594af3c8296b5636c710975149e23
 # libbffi is used by the fiddle extension module:
-TERMUX_PKG_DEPENDS="gdbm, libandroid-support, libffi, libgmp, readline, openssl, libyaml, zlib"
-TERMUX_PKG_RECOMMENDS="clang, make, pkg-config"
+TERMUX_PKG_DEPENDS="libandroid-execinfo, libandroid-support, libffi, libgmp, readline, openssl, libyaml, zlib"
+TERMUX_PKG_RECOMMENDS="clang, make, pkg-config, resolv-conf"
 TERMUX_PKG_BREAKS="ruby-dev"
 TERMUX_PKG_REPLACES="ruby-dev"
 # Needed to fix compilation on android:
-TERMUX_PKG_EXTRA_CONFIGURE_ARGS="ac_cv_func_setgroups=no ac_cv_func_setresuid=no ac_cv_func_setreuid=no --enable-rubygems --with-coroutine=copy"
-# The gdbm module seems to be very little used:
-TERMUX_PKG_EXTRA_CONFIGURE_ARGS+=" --without-gdbm"
+TERMUX_PKG_EXTRA_CONFIGURE_ARGS="ac_cv_func_setgroups=no ac_cv_func_setresuid=no ac_cv_func_setreuid=no --enable-rubygems"
 # Do not link in libcrypt.so if available (now in disabled-packages):
 TERMUX_PKG_EXTRA_CONFIGURE_ARGS+=" ac_cv_lib_crypt_crypt=no"
 # Fix DEPRECATED_TYPE macro clang compatibility:
@@ -22,14 +22,31 @@ TERMUX_PKG_EXTRA_CONFIGURE_ARGS+=" rb_cv_type_deprecated=x"
 # getresuid(2) does not work on ChromeOS - https://github.com/termux/termux-app/issues/147:
 # TERMUX_PKG_EXTRA_CONFIGURE_ARGS+=" ac_cv_func_getresuid=no"
 TERMUX_PKG_HOSTBUILD=true
+TERMUX_PKG_EXTRA_HOSTBUILD_CONFIGURE_ARGS="
+--prefix=$TERMUX_PKG_HOSTBUILD_DIR/ruby-host
+--disable-install-doc
+--disable-install-rdoc
+--disable-install-capi
+"
 
 termux_step_host_build() {
-	"$TERMUX_PKG_SRCDIR/configure" --prefix=$TERMUX_PKG_HOSTBUILD_DIR/ruby-host
+	"$TERMUX_PKG_SRCDIR/configure" ${TERMUX_PKG_EXTRA_HOSTBUILD_CONFIGURE_ARGS}
 	make -j $TERMUX_MAKE_PROCESSES
 	make install
 }
 
 termux_step_pre_configure() {
+	_RUBY_API_VERSION=$(echo $TERMUX_PKG_VERSION | cut -d . -f 1-2).0
+	test ${_RUBY_ABI_VERSION:=} && _RUBY_API_VERSION+=+${_RUBY_ABI_VERSION}
+
+	echo "Applying tool-rbinstall.rb.diff"
+	sed -e "s|@TERMUX_PREFIX@|${TERMUX_PREFIX}|g" \
+		-e "s|@RUBY_API_VERSION@|${_RUBY_API_VERSION}|g" \
+		$TERMUX_PKG_BUILDER_DIR/tool-rbinstall.rb.diff \
+		| patch --silent -p1
+
+	autoreconf -fi
+
 	export PATH=$TERMUX_PKG_HOSTBUILD_DIR/ruby-host/bin:$PATH
 
 	if [ "$TERMUX_ARCH_BITS" = 32 ]; then
@@ -46,7 +63,7 @@ termux_step_make_install() {
 	make uninstall # remove possible remains to get fresh timestamps
 	make install
 
-	local RBCONFIG=$TERMUX_PREFIX/lib/ruby/${TERMUX_PKG_VERSION:0:3}.0/${TERMUX_HOST_PLATFORM}/rbconfig.rb
+	local RBCONFIG=$TERMUX_PREFIX/lib/ruby/${_RUBY_API_VERSION}/${TERMUX_HOST_PLATFORM}/rbconfig.rb
 
 	# Fix absolute paths to executables:
 	perl -p -i -e 's/^.*CONFIG\["INSTALL"\].*$/  CONFIG["INSTALL"] = "install -c"/' $RBCONFIG
@@ -58,7 +75,11 @@ termux_step_make_install() {
 }
 
 termux_step_post_massage() {
-	if [ ! -f $TERMUX_PREFIX/lib/ruby/${TERMUX_PKG_VERSION:0:3}.0/${TERMUX_HOST_PLATFORM}/readline.so ]; then
-		echo "Error: The readline extension was not built"
+	if [ ! -f ./lib/ruby/${_RUBY_API_VERSION}/${TERMUX_HOST_PLATFORM}/readline.so ]; then
+		termux_error_exit "The readline extension was not installed."
+	fi
+	local _RUBYGEMS_ARCH=${TERMUX_HOST_PLATFORM/i686-/x86-}
+	if [ ! -d ./lib/ruby/gems/${_RUBY_API_VERSION}/extensions/${_RUBYGEMS_ARCH} ]; then
+		termux_error_exit "Extensions for bundled gems were not installed."
 	fi
 }

@@ -2,12 +2,14 @@ TERMUX_PKG_HOMEPAGE=https://ne.di.unimi.it/
 TERMUX_PKG_DESCRIPTION="Easy-to-use and powerful text editor"
 TERMUX_PKG_LICENSE="GPL-3.0"
 TERMUX_PKG_MAINTAINER="@termux"
-TERMUX_PKG_VERSION=3.3.0
-TERMUX_PKG_REVISION=1
+TERMUX_PKG_VERSION="3.3.3"
 TERMUX_PKG_SRCURL=https://github.com/vigna/ne/archive/${TERMUX_PKG_VERSION}.tar.gz
-TERMUX_PKG_SHA256=77a0c8e8564a29cd18069eebf04cee4855fae183f1e8f25d5fbb0c2651f07e6c
+TERMUX_PKG_SHA256=4f7509bb552e10348f9599f39856c8b7a2a74ea54c980dd2c9e15be212a1a6f0
 TERMUX_PKG_DEPENDS="libandroid-support, ncurses"
 TERMUX_PKG_BUILD_IN_SRC=true
+TERMUX_PKG_AUTO_UPDATE=true
+TERMUX_PKG_UPDATE_TAG_TYPE="newest-tag"
+TERMUX_MAKE_PROCESSES=1
 
 termux_step_pre_configure() {
 	export OPTS="$CFLAGS $CPPFLAGS"
@@ -16,7 +18,7 @@ termux_step_pre_configure() {
 termux_step_create_debscripts() {
 	cat <<- EOF > ./postinst
 	#!$TERMUX_PREFIX/bin/sh
-	if [ "\$1" = "configure" ] || [ "\$1" = "abort-upgrade" ]; then
+	if [ "$TERMUX_PACKAGE_FORMAT" = "pacman" ] || [ "\$1" = "configure" ] || [ "\$1" = "abort-upgrade" ]; then
 		if [ -x "$TERMUX_PREFIX/bin/update-alternatives" ]; then
 			update-alternatives --install \
 				$TERMUX_PREFIX/bin/editor editor $TERMUX_PREFIX/bin/ne 15
@@ -26,7 +28,7 @@ termux_step_create_debscripts() {
 
 	cat <<- EOF > ./prerm
 	#!$TERMUX_PREFIX/bin/sh
-	if [ "\$1" != "upgrade" ]; then
+	if [ "$TERMUX_PACKAGE_FORMAT" = "pacman" ] || [ "\$1" != "upgrade" ]; then
 		if [ -x "$TERMUX_PREFIX/bin/update-alternatives" ]; then
 			update-alternatives --remove editor $TERMUX_PREFIX/bin/ne
 		fi

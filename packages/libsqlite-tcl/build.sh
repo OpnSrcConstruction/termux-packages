@@ -4,17 +4,27 @@ TERMUX_PKG_LICENSE="Public Domain"
 TERMUX_PKG_MAINTAINER="@termux"
 # Note: Updating this version requires bumping libsqlite package as well.
 _SQLITE_MAJOR=3
-_SQLITE_MINOR=35
-_SQLITE_PATCH=5
+_SQLITE_MINOR=44
+_SQLITE_PATCH=2
+_SQLITE_YEAR=2023
 TERMUX_PKG_VERSION=${_SQLITE_MAJOR}.${_SQLITE_MINOR}.${_SQLITE_PATCH}
-TERMUX_PKG_SRCURL=https://www.sqlite.org/2021/sqlite-autoconf-${_SQLITE_MAJOR}${_SQLITE_MINOR}0${_SQLITE_PATCH}00.tar.gz
-TERMUX_PKG_SHA256=f52b72a5c319c3e516ed7a92e123139a6e87af08a2dc43d7757724f6132e6db0
+TERMUX_PKG_SRCURL=https://www.sqlite.org/${_SQLITE_YEAR}/sqlite-autoconf-${_SQLITE_MAJOR}${_SQLITE_MINOR}0${_SQLITE_PATCH}00.tar.gz
+TERMUX_PKG_SHA256=1c6719a148bc41cf0f2bbbe3926d7ce3f5ca09d878f1246fcc20767b175bb407
 TERMUX_PKG_DEPENDS="libsqlite, tcl"
 TERMUX_PKG_BREAKS="sqlcipher (<< 4.4.2-1), tcl (<< 8.6.10-4)"
 TERMUX_PKG_EXTRA_CONFIGURE_ARGS="
 --with-tcl=${TERMUX_PREFIX}/lib
 --with-system-sqlite
 "
+
+termux_step_post_get_source() {
+	# Version guard
+	local ver_s=$(. $TERMUX_SCRIPTDIR/packages/libsqlite/build.sh; echo ${TERMUX_PKG_VERSION#*:})
+	local ver_t=${TERMUX_PKG_VERSION#*:}
+	if [ "${ver_s}" != "${ver_t}" ]; then
+		termux_error_exit "Version mismatch between libsqlite and libsqlite-tcl."
+	fi
+}
 
 termux_step_post_get_source() {
 	TERMUX_PKG_SRCDIR+="/tea"

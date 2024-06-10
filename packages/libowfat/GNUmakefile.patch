@@ -1,21 +1,25 @@
-diff -uNr libowfat-0.32/GNUmakefile libowfat-0.32.mod/GNUmakefile
---- libowfat-0.32/GNUmakefile	2018-08-24 15:00:46.000000000 +0300
-+++ libowfat-0.32.mod/GNUmakefile	2020-01-01 23:34:46.416487188 +0200
-@@ -21,7 +21,7 @@
- CROSS=
- #CROSS=i686-mingw-
- CC?=gcc
--CCC=$(CROSS)$(CC)
-+CCC=$(CROSS)clang
- WERROR=
- WARN=-W -Wall -Wextra $(WERROR)
+--- a/GNUmakefile
++++ b/GNUmakefile
+@@ -41,8 +41,8 @@
  
-@@ -192,7 +192,7 @@
-   havesigio.h CAS.h
+ DEFINE=-D_REENTRANT
  
- t: t.o libowfat.a libsocket
--	$(DIET) $(CCC) -g -o $@ t.o libowfat.a `cat libsocket` -lpthread
-+	$(DIET) $(CCC) -g -o $@ t.o libowfat.a `cat libsocket`
+-CFLAGS=-pipe $(WARN) $(DEFINE) $(OPT_REG)
+-CFLAGS_OPT=-pipe $(WARN) $(DEFINE) $(OPT_PLUS)
++CFLAGS+=-pipe $(WARN) $(DEFINE)
++CFLAGS_OPT=$(CFLAGS)
  
- .PHONY: all clean tar install rename
- clean:
+ #CFLAGS=-pipe -Os -march=pentiumpro -mcpu=pentiumpro -fomit-frame-pointer -fschedule-insns2 -Wall
+ 
+@@ -68,9 +68,9 @@
+ endif
+ gcc_path = $(foreach dir,$(path),$(wildcard $(dir)/gcc))
+ ifeq ($(strip $(gcc_path)),)
+-CC=clang
++CC?=clang
+ else
+-CC=gcc
++CC?=gcc
+ endif
+ 
+ ifneq ($(DIET),)

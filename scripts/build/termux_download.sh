@@ -1,3 +1,5 @@
+#!/usr/bin/bash
+
 termux_download() {
 	if [ $# != 3 ]; then
 		termux_error_exit "termux_download(): Invalid arguments - expected \$URL \$DESTINATION \$CHECKSUM"
@@ -21,11 +23,11 @@ termux_download() {
 		ACTUAL_CHECKSUM=$(sha256sum "$TMPFILE" | cut -f 1 -d ' ')
 		if [ "$CHECKSUM" != "SKIP_CHECKSUM" ]; then
 			if [ "$CHECKSUM" != "$ACTUAL_CHECKSUM" ]; then
-				>&2 printf "Wrong checksum for %s:\nExpected: %s\nActual:   %s\n" \
+				>&2 printf "Wrong checksum for %s\nExpected: %s\nActual:   %s\n" \
 					   "$URL" "$CHECKSUM" "$ACTUAL_CHECKSUM"
 				return 1
 			fi
-		else
+		elif [ -z "$CHECKSUM" ]; then
 			printf "WARNING: No checksum check for %s:\nActual: %s\n" \
 			       "$URL" "$ACTUAL_CHECKSUM"
 		fi

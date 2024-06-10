@@ -2,8 +2,9 @@ TERMUX_PKG_HOMEPAGE=https://micro-editor.github.io/
 TERMUX_PKG_DESCRIPTION="Modern and intuitive terminal-based text editor"
 TERMUX_PKG_LICENSE="MIT"
 TERMUX_PKG_MAINTAINER="@termux"
-TERMUX_PKG_SRCURL=https://github.com/zyedidia/micro.git
-TERMUX_PKG_VERSION=2.0.9
+TERMUX_PKG_VERSION="2.0.13"
+TERMUX_PKG_AUTO_UPDATE=true
+TERMUX_PKG_SRCURL=git+https://github.com/zyedidia/micro
 
 termux_step_make() {
 	return
@@ -20,14 +21,14 @@ termux_step_make_install() {
 	cp -R . $MICRO_SRC
 
 	cd $MICRO_SRC
-	make build-quick
+	make build
 	mv micro $TERMUX_PREFIX/bin/micro
 }
 
 termux_step_create_debscripts() {
 	cat <<- EOF > ./postinst
 	#!$TERMUX_PREFIX/bin/sh
-	if [ "\$1" = "configure" ] || [ "\$1" = "abort-upgrade" ]; then
+	if [ "$TERMUX_PACKAGE_FORMAT" = "pacman" ] || [ "\$1" = "configure" ] || [ "\$1" = "abort-upgrade" ]; then
 		if [ -x "$TERMUX_PREFIX/bin/update-alternatives" ]; then
 			update-alternatives --install \
 				$TERMUX_PREFIX/bin/editor editor $TERMUX_PREFIX/bin/micro 25
@@ -37,7 +38,7 @@ termux_step_create_debscripts() {
 
 	cat <<- EOF > ./prerm
 	#!$TERMUX_PREFIX/bin/sh
-	if [ "\$1" != "upgrade" ]; then
+	if [ "$TERMUX_PACKAGE_FORMAT" = "pacman" ] || [ "\$1" != "upgrade" ]; then
 		if [ -x "$TERMUX_PREFIX/bin/update-alternatives" ]; then
 			update-alternatives --remove editor $TERMUX_PREFIX/bin/micro
 		fi

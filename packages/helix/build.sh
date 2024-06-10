@@ -1,23 +1,33 @@
 TERMUX_PKG_HOMEPAGE="https://helix-editor.com/"
 TERMUX_PKG_DESCRIPTION="A post-modern modal text editor written in rust"
 TERMUX_PKG_LICENSE="MPL-2.0"
-TERMUX_PKG_MAINTAINER="@termux"
-TERMUX_PKG_VERSION=0.3.0
-TERMUX_PKG_SRCURL="https://github.com/helix-editor/helix.git"
-TERMUX_PKG_GIT_BRANCH=v$TERMUX_PKG_VERSION
+TERMUX_PKG_MAINTAINER="Aditya Alok <alok@termux.org>"
+TERMUX_PKG_VERSION="23.10"
+TERMUX_PKG_SRCURL="git+https://github.com/helix-editor/helix"
+TERMUX_PKG_GIT_BRANCH="${TERMUX_PKG_VERSION}"
+TERMUX_PKG_SUGGESTS="helix-grammars"
 TERMUX_PKG_BUILD_IN_SRC=true
+TERMUX_PKG_AUTO_UPDATE=true
+TERMUX_PKG_RM_AFTER_INSTALL="
+opt/helix/runtime/grammars/sources/
+"
 
-termux_step_make_install(){
+termux_step_make_install() {
 	termux_setup_rust
-	cargo build --jobs $TERMUX_MAKE_PROCESSES --target $CARGO_TARGET_NAME --release
 
-	cat > "hx" <<- EOF
-	#!${TERMUX_PREFIX}/bin/sh
-	HELIX_RUNTIME=${TERMUX_PREFIX}/lib/helix/runtime exec ${TERMUX_PREFIX}/lib/helix/hx "\$@"
+	cargo build --jobs "${TERMUX_MAKE_PROCESSES}" --target "${CARGO_TARGET_NAME}" --release
+
+	local datadir="${TERMUX_PREFIX}/opt/${TERMUX_PKG_NAME}"
+	mkdir -p "${datadir}"
+
+	cat >"${TERMUX_PREFIX}/bin/hx" <<-EOF
+		#!${TERMUX_PREFIX}/bin/sh
+		HELIX_RUNTIME=${datadir}/runtime exec ${datadir}/hx "\$@"
 	EOF
-	install -Dm755 ./hx $TERMUX_PREFIX/bin/hx
+	chmod 0700 "${TERMUX_PREFIX}/bin/hx"
 
-	mkdir -p ${TERMUX_PREFIX}/lib/helix
-	cp -r runtime ${TERMUX_PREFIX}/lib/helix
-	install -Dm755 -t ${TERMUX_PREFIX}/lib/helix target/${CARGO_TARGET_NAME}/release/hx
+	install -Dm700 target/"${CARGO_TARGET_NAME}"/release/hx "${datadir}/hx"
+
+	cp -r ./runtime "${datadir}"
+	find "${datadir}"/runtime/grammars -type f -name "*.so" -exec chmod 0700 {} \;
 }

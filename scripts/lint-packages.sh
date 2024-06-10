@@ -2,8 +2,7 @@
 
 set -e -u
 
-REPO_DIR=$(realpath "$(dirname "$0")/../")
-PACKAGES_DIR="$REPO_DIR/packages"
+TERMUX_SCRIPTDIR=$(realpath "$(dirname "$0")/../")
 
 check_package_license() {
 	local pkg_licenses=$1
@@ -20,7 +19,7 @@ check_package_license() {
 			"BSD 3-Clause"|"BSD New"|"BSD Simplified"|BSL-1.0|Bouncy-Castle);;
 			CA-TOSL-1.1|CC0-1.0|CDDL-1.0|CDDL-1.1|CPAL-1.0|CPL-1.0|CPOL);;
 			CPOL-1.02|CUAOFFICE-1.0|CeCILL-1|CeCILL-2|CeCILL-2.1|CeCILL-B);;
-			CeCILL-C|Codehaus|Copyfree|Day|Day-Addendum|ECL2|EPL-1.0|EPL-2.0);;
+			CeCILL-C|Codehaus|Copyfree|curl|Day|Day-Addendum|ECL2|EPL-1.0|EPL-2.0);;
 			EUDATAGRID|EUPL-1.1|EUPL-1.2|Eiffel-2.0|Entessa-1.0);;
 			Facebook-Platform|Fair|Frameworx-1.0|GPL-2.0|GPL-3.0|GPL-3.0-only);;
 			GPL-3.0-or-later|Go|HSQLDB|Historical|IBMPL-1.0|IJG|IPAFont-1.0);;
@@ -33,7 +32,7 @@ check_package_license() {
 			PythonPL|PythonSoftFoundation|QTPL-1.0|RPL-1.5|Real-1.0|RicohPL);;
 			SUNPublic-1.0|Scala|SimPL-2.0|Sleepycat|Sybase-1.0|TMate|UPL-1.0);;
 			Unicode-DFS-2015|Unlicense|UoI-NCSA|"VIM License"|VovidaPL-1.0|W3C);;
-			WTFPL|Xnet|ZLIB|ZPL-2.0|wxWindows);;
+			WTFPL|Xnet|ZLIB|ZPL-2.0|wxWindows|X11);;
 
 			*)
 				license_ok=false
@@ -50,6 +49,23 @@ check_package_license() {
 	fi
 }
 
+check_package_name() {
+	local pkg_name=$1
+	echo -n "Package name '${pkg_name}': "
+	if [ "${#pkg_name}" -ge 2 ]; then
+		if grep -qP '^[0-9a-z][0-9a-z+\-\.]+$' <<< "${pkg_name}"; then
+			echo "PASS"
+			return 0
+		else
+			echo "INVALID (contains characters that are not allowed)"
+			return 1
+		fi
+	else
+		echo "INVALID (less than two characters long)"
+		return 1
+	fi
+}
+
 lint_package() {
 	local package_script
 	local package_name
@@ -61,6 +77,17 @@ lint_package() {
 	echo
 	echo "Package: $package_name"
 	echo
+
+	check_package_name "$package_name" || return 1
+	local subpkg_script
+	for subpkg_script in $(dirname "$package_script")/*.subpackage.sh; do
+		test ! -f "$subpkg_script" && continue
+		local subpkg_name=$(basename "${subpkg_script%.subpackage.sh}")
+		check_package_name "$subpkg_name" || return 1
+	done
+
+	echo
+
 	echo -n "Syntax check: "
 
 	local syntax_errors
@@ -87,8 +114,8 @@ lint_package() {
 		# Using API 24 here.
 		TERMUX_PKG_API_LEVEL=24
 
-		if [ -f "$REPO_DIR/scripts/properties.sh" ]; then
-			. "$REPO_DIR/scripts/properties.sh"
+		if [ -f "$TERMUX_SCRIPTDIR/scripts/properties.sh" ]; then
+			. "$TERMUX_SCRIPTDIR/scripts/properties.sh"
 		fi
 
 		. "$package_script"
@@ -168,7 +195,12 @@ lint_package() {
 
 		echo -n "TERMUX_PKG_VERSION: "
 		if [ -n "$TERMUX_PKG_VERSION" ]; then
-			echo "PASS"
+			if grep -qiP '^([0-9]+\:)?[0-9][0-9a-z+\-\.\~]*$' <<< "${TERMUX_PKG_VERSION}"; then
+				echo "PASS"
+			else
+				echo "INVALID (contains characters that are not allowed)"
+				pkg_lint_error=true
+			fi
 		else
 			echo "NOT SET"
 			pkg_lint_error=true
@@ -202,7 +234,7 @@ lint_package() {
 			urls_ok=true
 			for url in "${TERMUX_PKG_SRCURL[@]}"; do
 				if [ -n "$url" ]; then
-					if ! grep -qP '^https://.+' <<< "$url"; then
+					if ! grep -qP '^git\+https://.+' <<< "$url" && ! grep -qP '^https://.+' <<< "$url"; then
 						echo "NON-HTTPS (acceptable)"
 						urls_ok=false
 						break
@@ -244,7 +276,7 @@ lint_package() {
 					echo "LENGTHS OF 'TERMUX_PKG_SRCURL' AND 'TERMUX_PKG_SHA256' ARE NOT EQUAL"
 					pkg_lint_error=true
 				fi
-			elif [ "${TERMUX_PKG_SRCURL: -4}" == ".git" ]; then
+			elif [ "${TERMUX_PKG_SRCURL:0:4}" == "git+" ]; then
 				echo "NOT SET (acceptable since TERMUX_PKG_SRCURL is git repo)"
 			else
 				echo "NOT SET"
@@ -430,7 +462,7 @@ linter_main() {
 	if $problems_found; then
 		echo "================================================================"
 		echo
-		echo "A problem has been found in '$(realpath --relative-to="$REPO_DIR" "$package_script")'."
+		echo "A problem has been found in '$(realpath --relative-to="$TERMUX_SCRIPTDIR" "$package_script")'."
 		echo "Checked $package_counter packages before the first error was detected."
 		echo
 		echo "================================================================"
@@ -449,7 +481,9 @@ linter_main() {
 }
 
 if [ $# -eq 0 ]; then
-	linter_main "$PACKAGES_DIR"/*/build.sh || exit 1
+	for repo_dir in $(jq --raw-output 'del(.pkg_format) | keys | .[]' $TERMUX_SCRIPTDIR/repo.json); do
+		linter_main $repo_dir/*/build.sh
+	done || exit 1
 else
 	linter_main "$@" || exit 1
 fi

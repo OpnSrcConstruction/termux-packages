@@ -2,26 +2,42 @@ TERMUX_PKG_HOMEPAGE=https://github.com/tesseract-ocr/tesseract
 TERMUX_PKG_DESCRIPTION="Tesseract is probably the most accurate open source OCR engine available"
 TERMUX_PKG_LICENSE="Apache-2.0"
 TERMUX_PKG_MAINTAINER="@termux"
-TERMUX_PKG_VERSION=4.1.1
+TERMUX_PKG_VERSION="5.3.4"
 TERMUX_PKG_SRCURL=https://github.com/tesseract-ocr/tesseract/archive/${TERMUX_PKG_VERSION}.tar.gz
-TERMUX_PKG_SHA256=2a66ff0d8595bff8f04032165e6c936389b1e5727c3ce5a27b3e059d218db1cb
-TERMUX_PKG_DEPENDS="libc++, libtool, libuuid, leptonica, libandroid-glob"
+TERMUX_PKG_SHA256=141afc12b34a14bb691a939b4b122db0d51bd38feda7f41696822bacea7710c7
+TERMUX_PKG_AUTO_UPDATE=true
+TERMUX_PKG_DEPENDS="fontconfig, glib, harfbuzz, leptonica, libandroid-glob, libandroid-posix-semaphore, libarchive, libc++, libcairo, libcurl, libicu, pango"
+TERMUX_PKG_BUILD_DEPENDS="libcpufeatures"
 TERMUX_PKG_BREAKS="tesseract-dev"
 TERMUX_PKG_REPLACES="tesseract-dev"
+TERMUX_PKG_FORCE_CMAKE=true
+TERMUX_PKG_EXTRA_CONFIGURE_ARGS="
+-DBUILD_SHARED_LIBS=ON
+-DUSE_SYSTEM_ICU=on
+-DTESSDATA_PREFIX=$TERMUX_PREFIX/share
+-DOPENMP_BUILD=ON
+-DLEPT_TIFF_RESULT=0
+"
+
+termux_step_post_get_source() {
+	# Do not forget to bump revision of reverse dependencies and rebuild them
+	# after SOVERSION is changed.
+	local _SOVERSION=5
+
+	local v=$(sed -n 's/^\([^.]*\)\..*/\1/p' VERSION)
+	if [ "${_SOVERSION}" != "${v}" ]; then
+		termux_error_exit "SOVERSION guard check failed."
+	fi
+}
 
 termux_step_pre_configure() {
-	export LIBS="-landroid-glob"
-
-	# http://blog.matt-swain.com/post/26419042500/installing-tesseract-ocr-on-mac-os-x-lion
-	export LIBLEPT_HEADERSDIR=${TERMUX_PREFIX}/include/leptonica
-
-	perl -p -i -e 's|ADD_RT], true|ADD_RT], false|g' configure.ac
-	./autogen.sh
+	LDFLAGS+=" -landroid-posix-semaphore"
 }
 
 termux_step_post_make_install() {
 	# download english trained data
-	cd "${TERMUX_PREFIX}/share/tessdata"
+	mkdir -p "${TERMUX_PREFIX}"/share/tessdata
+	cd "${TERMUX_PREFIX}"/share/tessdata
 	rm -f eng.*
 
 	local checksums

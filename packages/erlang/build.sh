@@ -2,34 +2,56 @@ TERMUX_PKG_HOMEPAGE=https://www.erlang.org/
 TERMUX_PKG_DESCRIPTION="General-purpose concurrent functional programming language"
 TERMUX_PKG_LICENSE="Apache-2.0"
 TERMUX_PKG_MAINTAINER="@termux"
-TERMUX_PKG_VERSION=22.3.4
+TERMUX_PKG_VERSION="26.2.1"
 TERMUX_PKG_SRCURL=https://github.com/erlang/otp/archive/OTP-$TERMUX_PKG_VERSION.tar.gz
-TERMUX_PKG_SHA256=79657e07aee0cc174f89c1bd7d8d251295f64144cced6ea72b98777ec6a6660d
-TERMUX_PKG_DEPENDS="openssl, ncurses, zlib"
+TERMUX_PKG_SHA256=d99eab3af908b41dd4d7df38f0b02a447579326dd6604f641bbe9f2789b5656b
+TERMUX_PKG_AUTO_UPDATE=true
+TERMUX_PKG_UPDATE_VERSION_REGEXP='\d+(\.\d+)+'
+TERMUX_PKG_DEPENDS="libc++, openssl, ncurses, zlib"
 TERMUX_PKG_NO_STATICSPLIT=true
 TERMUX_PKG_HOSTBUILD=true
 TERMUX_PKG_BUILD_IN_SRC=true
-TERMUX_PKG_EXTRA_CONFIGURE_ARGS="--without-javac --with-ssl=${TERMUX_PREFIX} --with-termcap"
-TERMUX_PKG_EXTRA_MAKE_ARGS="noboot"
+TERMUX_PKG_EXTRA_CONFIGURE_ARGS="
+--without-javac
+--with-ssl=${TERMUX_PREFIX}
+--with-termcap
+erl_xcomp_sysroot=${TERMUX_PREFIX}
+"
+termux_pkg_auto_update() {
+	# Get latest release tag:
+	local tag
+	tag="$(termux_github_api_get_tag "${TERMUX_PKG_SRCURL}")"
+	# check if this is not an intermediate release candidate:
+	if grep -qP "^OTP-${TERMUX_PKG_UPDATE_VERSION_REGEXP}\$" <<<"$tag"; then
+		termux_pkg_upgrade_version "$tag"
+	else
+		echo "WARNING: Skipping auto-update: Not stable release($tag)"
+	fi
+}
 
 termux_step_post_get_source() {
-	# We need a host build every time:
+	# We need a host build every time, because we dont know the full output of host build and have no idea to cache it.
 	rm -Rf "$TERMUX_PKG_HOSTBUILD_DIR"
-	./otp_build autoconf
 }
 
 termux_step_host_build() {
-	cd $TERMUX_PKG_SRCDIR
-	./configure --enable-bootstrap-only
-	make -j "$TERMUX_MAKE_PROCESSES"
+	cd $TERMUX_PKG_BUILDDIR
+	# Erlang cross compile reference: https://github.com/erlang/otp/blob/master/HOWTO/INSTALL-CROSS.md#building-a-bootstrap-system
+	# Build erlang bootstrap system.
+	./configure --enable-bootstrap-only --without-javac --without-ssl --without-termcap
+	make -j $TERMUX_MAKE_PROCESSES
 }
 
 termux_step_pre_configure() {
-	(cd erts && autoreconf)
+	# Add --build flag for erlang cross build
+	TERMUX_PKG_EXTRA_CONFIGURE_ARGS+=" --build=$(./erts/autoconf/config.guess)"
 
-	# liblog is needed for syslog usage:
-	LDFLAGS+=" -llog"
-	# Put binaries built in termux_step_host_build at start of PATH:
-	cp bin/*/* $TERMUX_PKG_SRCDIR/bootstrap/bin
-	export PATH="$TERMUX_PKG_SRCDIR/bootstrap/bin:$PATH"
+	# Use a wrapper CC to move `-I@TERMUX_PREFIX@/include` to the last include param
+	mkdir -p $TERMUX_PKG_TMPDIR/_fake_bin
+	sed -e "s|@TERMUX_PREFIX@|${TERMUX_PREFIX}|g" \
+		-e "s|@COMPILER@|$(command -v ${CC})|g" \
+		"$TERMUX_PKG_BUILDER_DIR"/wrapper.py.in \
+		> $TERMUX_PKG_TMPDIR/_fake_bin/"$(basename ${CC})"
+	chmod +x $TERMUX_PKG_TMPDIR/_fake_bin/"$(basename ${CC})"
+	export PATH="$TERMUX_PKG_TMPDIR/_fake_bin:$PATH"
 }

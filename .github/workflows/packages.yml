@@ -4,269 +4,307 @@ on:
   push:
     branches:
     - master
+    - dev
+    - 'dev/**'
     paths:
     - 'packages/**'
+    - 'root-packages/**'
+    - 'x11-packages/**'
   pull_request:
     paths:
     - 'packages/**'
+    - 'root-packages/**'
+    - 'x11-packages/**'
+  workflow_dispatch:
+    inputs:
+      packages:
+        description: "A space-separated names of packages selected for rebuilding"
+        required: true
+
+permissions: {} # none
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-    env:
-      ANDROID_HOME: "/opt/termux/android-sdk"
-      NDK: "/opt/termux/android-ndk"
+    permissions:
+      contents: read # actions/upload-artifact doesn't need contents: write
+    runs-on: ubuntu-22.04
     strategy:
       matrix:
         target_arch: [aarch64, arm, i686, x86_64]
       fail-fast: false
     steps:
+    - name: Setup arm and aarch64 CPU emulators
+      uses: dbhi/qus/action@main
+      with:
+        targets: arm aarch64
     - name: Clone repository
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
       with:
         fetch-depth: 1000
-    - name: Build
+    - name: Gather build summary
       run: |
-        BASE_COMMIT=$(jq --raw-output .pull_request.base.sha "$GITHUB_EVENT_PATH")
-        OLD_COMMIT=$(jq --raw-output .commits[0].id "$GITHUB_EVENT_PATH")
-        HEAD_COMMIT=$(jq --raw-output .commits[-1].id "$GITHUB_EVENT_PATH")
-        if [ "$BASE_COMMIT" = "null" ]; then
-          if [ "$OLD_COMMIT" = "$HEAD_COMMIT" ]; then
-            # Single-commit push.
-            echo "Processing commit: ${HEAD_COMMIT}"
-            CHANGED_FILES=$(git diff-tree --no-commit-id --name-only -r "${HEAD_COMMIT}")
+        if [ "${{ github.event_name }}" != "workflow_dispatch" ]; then
+          BASE_COMMIT=$(jq --raw-output .pull_request.base.sha "$GITHUB_EVENT_PATH")
+          OLD_COMMIT=$(jq --raw-output .commits[0].id "$GITHUB_EVENT_PATH")
+          HEAD_COMMIT=$(jq --raw-output .commits[-1].id "$GITHUB_EVENT_PATH")
+          if [ "$BASE_COMMIT" = "null" ]; then
+            if [ "$OLD_COMMIT" = "$HEAD_COMMIT" ]; then
+              # Single-commit push.
+              echo "Processing commit: ${HEAD_COMMIT}"
+              CHANGED_FILES=$(git diff-tree --no-commit-id --name-only -r "${HEAD_COMMIT}")
+            else
+              # Multi-commit push.
+              OLD_COMMIT="${OLD_COMMIT}~1"
+              echo "Processing commit range: ${OLD_COMMIT}..${HEAD_COMMIT}"
+              CHANGED_FILES=$(git diff-tree --no-commit-id --name-only -r "${OLD_COMMIT}" "${HEAD_COMMIT}")
+            fi
           else
-            # Multi-commit push.
-            OLD_COMMIT="${OLD_COMMIT}~1"
-            echo "Processing commit range: ${OLD_COMMIT}..${HEAD_COMMIT}"
-            CHANGED_FILES=$(git diff-tree --no-commit-id --name-only -r "${OLD_COMMIT}" "${HEAD_COMMIT}")
+            # Pull requests.
+            echo "Processing pull request #$(jq --raw-output .pull_request.number "$GITHUB_EVENT_PATH"): ${BASE_COMMIT}..HEAD"
+            CHANGED_FILES=$(git diff-tree --no-commit-id --name-only -r "${BASE_COMMIT}" "HEAD")
           fi
-        else
-          # Pull requests.
-          echo "Processing pull request #$(jq --raw-output .pull_request.number "$GITHUB_EVENT_PATH"): ${BASE_COMMIT}..HEAD"
-          CHANGED_FILES=$(git diff-tree --no-commit-id --name-only -r "${BASE_COMMIT}" "HEAD")
         fi
         mkdir -p ./artifacts ./debs
         touch ./debs/.placeholder
-        # Process tag '%ci:no-build' that may be added as line to commit message.
-        # Forces CI to cancel current build with status 'passed'.
-        if grep -qiP '^\s*%ci:no-build\s*$' <(git log --format="%B" -n 1 "HEAD"); then
-          tar cf artifacts/debs-${{ matrix.target_arch }}.tar debs
-          echo "[!] Force exiting as tag '%ci:no-build' was applied to HEAD commit message."
-          exit 0
-        fi
-        # Build local Docker image if setup scripts were changed.
-        # Useful for pull requests submitting changes for both build environment and packages.
-        if grep -qP '^scripts/(Dockerfile|setup-ubuntu\.sh)$' <<< "$CHANGED_FILES"; then
-          echo "Detected changes for environment setup scripts. Building custom Docker image now."
-          cd ./scripts
-          docker build -t termux/package-builder:latest .
-          cd ..
-        fi
-        # Parse changed files and identify new packages and deleted packages.
-        # Create lists of those packages that will be passed to upload job for
-        # further processing.
-        while read -r file; do
-          if ! [[ $file == packages/* ]]; then
-            # This file does not belong to a package, so ignore it
-            continue
+
+        if [ "${{ github.event_name }}" != "workflow_dispatch" ]; then
+          # Process tag '%ci:no-build' that may be added as line to commit message.
+          # Forces CI to cancel current build with status 'passed'
+          if grep -qiP '^\s*%ci:no-build\s*$' <(git log --format="%B" -n 1 "HEAD"); then
+            tar cf artifacts/debs-${{ matrix.target_arch }}.tar debs
+            echo "[!] Force exiting as tag '%ci:no-build' was applied to HEAD commit message."
+            exit 0
           fi
-          if [[ $file =~ ^packages/([a-z0-9-]*)/([a-z0-9-]*).subpackage.sh$ ]]; then
-            # A subpackage was modified, check if it was deleted or just updated
-            pkg=${BASH_REMATCH[1]}
-            subpkg=${BASH_REMATCH[2]}
-            if [ ! -f "packages/${pkg}/${subpkg}.subpackage.sh" ]; then
-              echo "$subpkg" >> ./deleted_packages.txt
-            fi
-          elif [[ $file =~ ^packages/([a-z0-9-]*)/.*$ ]]; then
-            # package, check if it was deleted or updated
-            pkg=${BASH_REMATCH[1]}
-            if [ ! -d "packages/${pkg}" ]; then
-              echo "$pkg" >> ./deleted_packages.txt
-            else
-              echo "$pkg" >> ./built_packages.txt
-              # If there are subpackages we want to create a list of those
-              # as well
-              for file in $(find "packages/${pkg}/" -maxdepth 1 -type f -name \*.subpackage.sh | sort); do
-                echo "$(basename "${file%%.subpackage.sh}")" >> ./built_subpackages.txt
-              done
-            fi
+
+          # Build local Docker image if setup scripts were changed.
+          # Useful for pull requests submitting changes for both build environment and packages.
+          if grep -qP '^scripts/(Dockerfile|properties\.sh|setup-android-sdk\.sh|setup-ubuntu\.sh)$' <<< "$CHANGED_FILES"; then
+            echo "Detected changes for environment setup scripts. Building custom Docker image now."
+            cd ./scripts
+            docker build -t ghcr.io/termux/package-builder:latest .
+            cd ..
           fi
-        done<<<${CHANGED_FILES}
 
-        # Fix so that lists do not contain duplicates
-        if [ -f ./built_packages.txt ]; then
-          uniq ./built_packages.txt > ./built_packages.txt.tmp
-          mv ./built_packages.txt.tmp ./built_packages.txt
-        fi
-        if [ -f ./built_subpackages.txt ]; then
-          uniq ./built_subpackages.txt > ./built_subpackages.txt.tmp
-          mv ./built_subpackages.txt.tmp ./built_subpackages.txt
-        fi
-        if [ -f ./deleted_packages.txt ]; then
-          uniq ./deleted_packages.txt > ./deleted_packages.txt.tmp
-          mv ./deleted_packages.txt.tmp ./deleted_packages.txt
+          for repo_path in $(jq --raw-output 'del(.pkg_format) | keys | .[]' repo.json); do
+            repo=$(jq --raw-output '.["'${repo_path}'"].name' repo.json)
+            # Parse changed files and identify new packages and deleted packages.
+            # Create lists of those packages that will be passed to upload job for
+            # further processing.
+            while read -r file; do
+              if ! [[ $file == ${repo_path}/* ]]; then
+                # This file does not belong to a package, so ignore it
+                continue
+              fi
+              if [[ $file =~ ^${repo_path}/([.a-z0-9+-]*)/([.a-z0-9+-]*).subpackage.sh$ ]]; then
+                # A subpackage was modified, check if it was deleted or just updated
+                pkg=${BASH_REMATCH[1]}
+                subpkg=${BASH_REMATCH[2]}
+                if [ ! -f "${repo_path}/${pkg}/${subpkg}.subpackage.sh" ]; then
+                  echo "$subpkg" >> ./deleted_${repo}_packages.txt
+                fi
+              elif [[ $file =~ ^${repo_path}/([.a-z0-9+-]*)/.*$ ]]; then
+                # package, check if it was deleted or updated
+                pkg=${BASH_REMATCH[1]}
+                if [ -d "${repo_path}/${pkg}" ]; then
+                  echo "$pkg" >> ./built_${repo}_packages.txt
+                  # If there are subpackages we want to create a list of those
+                  # as well
+                  for file in $(find "${repo_path}/${pkg}/" -maxdepth 1 -type f -name \*.subpackage.sh | sort); do
+                    echo "$(basename "${file%%.subpackage.sh}")" >> ./built_${repo}_subpackages.txt
+                  done
+                else
+                  echo "$pkg" >> ./deleted_${repo}_packages
+                fi
+              fi
+            done<<<${CHANGED_FILES}
+          done
+        else
+          for pkg in ${{ github.event.inputs.packages }}; do
+            repo_paths=$(jq --raw-output 'del(.pkg_format) | keys | .[]' repo.json)
+            found=false
+            for repo_path in $repo_paths; do
+              repo=$(jq --raw-output '.["'${repo_path}'"].name' repo.json)
+              if [ -d "${repo_path}/${pkg}" ]; then
+                found=true
+                echo "$pkg" >> ./built_${repo}_packages.txt
+                for subpkg in $(find "${repo_path}/${pkg}/" -maxdepth 1 -type f -name \*.subpackage.sh | sort); do
+                  echo "$(basename "${subpkg%%.subpackage.sh}")" >> ./built_${repo}_subpackages.txt
+                done
+              fi
+            done
+            if [ "$found" != true ]; then
+              echo "Package '${pkg}' not found in any of the repo"
+              exit 1
+            fi
+          done
         fi
 
-        if grep -qP '^rust$' ./built_packages.txt ; then
-          echo "Free additional disk space on host"
-          sudo apt purge -yq $(dpkg -l | grep '^ii' | awk '{ print $2 }' | grep -P '(cabal-|dotnet-|ghc-|libmono|php)') \
-            liblldb-6.0 libllvm6.0:amd64 mono-runtime-common monodoc-manual powershell ruby
-          sudo apt autoremove -yq
-          sudo rm -rf /opt/hostedtoolcache /usr/local /usr/share/dotnet /usr/share/swift
+        for repo in $(jq --raw-output 'del(.pkg_format) | .[].name' repo.json); do
+          # Fix so that lists do not contain duplicates
+          if [ -f ./built_${repo}_packages.txt ]; then
+            sort ./built_${repo}_packages.txt | uniq > ./built_${repo}_packages.txt.tmp
+            mv ./built_${repo}_packages.txt.tmp ./built_${repo}_packages.txt
+          fi
+          if [ -f ./built_${repo}_subpackages.txt ]; then
+            sort ./built_${repo}_subpackages.txt | uniq > ./built_${repo}_subpackages.txt.tmp
+            mv ./built_${repo}_subpackages.txt.tmp ./built_${repo}_subpackages.txt
+          fi
+          if [ -f ./deleted_${repo}_packages.txt ]; then
+            sort ./deleted_${repo}_packages.txt | uniq > ./deleted_${repo}_packages.txt.tmp
+            mv ./deleted_${repo}_packages.txt.tmp ./deleted_${repo}_packages.txt
+          fi
+        done
+
+    - name: Lint packages
+      run: |
+        declare -a package_recipes
+        for repo_path in $(jq --raw-output 'del(.pkg_format) | keys | .[]' repo.json); do
+          repo=$(jq --raw-output '.["'${repo_path}'"].name' repo.json)
+          if [ -f ./built_${repo}_packages.txt ]; then
+            package_recipes="$package_recipes $(cat ./built_${repo}_packages.txt | repo_path=${repo_path} awk '{print ENVIRON["repo_path"]"/"$1"/build.sh"}')"
+          fi
+        done
+
+        if [ ! -z "$package_recipes" ]; then
+          ./scripts/lint-packages.sh $package_recipes
         fi
 
-        if [ -f ./built_packages.txt ]; then
-          ./scripts/lint-packages.sh $(cat ./built_packages.txt | awk '{print "packages/"$1"/build.sh"}')
-          ./scripts/run-docker.sh ./build-package.sh -I -a ${{ matrix.target_arch }} $(cat ./built_packages.txt)
+    - name: Free additional disk space (if necessary)
+      run: |
+        declare -a packages
+        for repo_path in $(jq --raw-output 'del(.pkg_format) | keys | .[]' repo.json); do
+          repo=$(jq --raw-output '.["'${repo_path}'"].name' repo.json)
+
+          if [ -f ./built_${repo}_packages.txt ]; then
+            packages="$packages $(cat ./built_${repo}_packages.txt | tr '\n' ' ')"
+          fi
+        done
+
+        if [ ! -z "$packages" ]; then
+          if grep -qP "(^|\\s)${packages// /($|\\s)|(^|\\s)}($|\\s)" ./scripts/big-pkgs.list; then
+            ./scripts/setup-ubuntu.sh
+            sudo apt install ninja-build
+            sudo apt purge -yq $(dpkg -l | grep '^ii' | awk '{ print $2 }' | grep -P '(aspnetcore|cabal-|dotnet-|ghc-|libmono|mongodb-|mysql-|php)') \
+              firefox google-chrome-stable microsoft-edge-stable mono-devel mono-runtime-common monodoc-manual ruby
+            sudo apt autoremove -yq
+            sudo apt clean
+            sudo rm -fr /opt/hostedtoolcache /usr/lib/node_modules /usr/share/dotnet /usr/share/swift
+          fi
         fi
 
-        test -d ./termux-packages/debs && mv ./termux-packages/debs/* ./debs/
-        # Put package lists into directory with *.deb files so they will be transferred to
-        # upload job.
-        test -f ./built_packages.txt && mv ./built_packages.txt ./debs/
-        test -f ./built_subpackages.txt && cat ./built_subpackages.txt >> ./debs/built_packages.txt \
-          && rm ./built_subpackages.txt
-        test -f ./deleted_packages.txt && mv ./deleted_packages.txt ./debs/
+    - name: Build packages
+      run: |
+        declare -a packages
+        for repo_path in $(jq --raw-output 'del(.pkg_format) | keys | .[]' repo.json); do
+          repo=$(jq --raw-output '.["'${repo_path}'"].name' repo.json)
+
+          if [ -f ./built_${repo}_packages.txt ]; then
+            packages="$packages $(cat ./built_${repo}_packages.txt | tr '\n' ' ')"
+          fi
+        done
+
+        if [ ! -z "$packages" ]; then
+          if grep -qP "(^|\\s)${packages// /($|\\s)|(^|\\s)}($|\\s)" ./scripts/big-pkgs.list; then
+            NDK=$ANDROID_NDK_LATEST_HOME ANDROID_HOME=$ANDROID_SDK_ROOT ./build-package.sh -I -a ${{ matrix.target_arch }} $packages
+          else
+            ./scripts/run-docker.sh ./build-package.sh -I -a ${{ matrix.target_arch }} $packages
+          fi
+        fi
+
+    - name: Generate build artifacts
+      if: always()
+      run: |
+        test -d termux-packages/output && mv termux-packages/output/* ./output/
+
+        for repo in $(jq --raw-output 'del(.pkg_format) | .[].name' repo.json); do
+          # Put package lists into directory with *.deb files so they will be transferred to
+          # upload job.
+          test -f ./built_${repo}_packages.txt && mv ./built_${repo}_packages.txt ./debs/
+          test -f ./built_${repo}_subpackages.txt && cat ./built_${repo}_subpackages.txt >> ./debs/built_${repo}_packages.txt \
+            && rm ./built_${repo}_subpackages.txt
+          test -f ./deleted_${repo}_packages.txt && mv ./deleted_${repo}_packages.txt ./debs/
+
+          # Move only debs from built_packages into debs/ folder before
+          # creating an archive.
+          while read -r pkg; do
+            # Match both $pkg.deb and $pkg-static.deb.
+            find output \( -name "$pkg_*.deb" -o -name "$pkg-static_*.deb" \) -type f -print0 | xargs -0r mv -t debs/
+          done < <(cat ./debs/built_${repo}_packages.txt)
+        done
+
         # Files containing certain symbols (e.g. ":") will cause failure in actions/upload-artifact.
         # Archiving *.deb files in a tarball to avoid issues with uploading.
         tar cf artifacts/debs-${{ matrix.target_arch }}-${{ github.sha }}.tar debs
     - name: Checksums for built *.deb files
+      if: always()
       run: |
         find debs -type f -name "*.deb" -exec sha256sum "{}" \; | sort -k2
     - name: Store *.deb files
-      uses: actions/upload-artifact@v2
+      if: always()
+      uses: actions/upload-artifact@v4
       with:
-        name: termux-packages-${{ github.sha }}
+        name: debs-${{ matrix.target_arch }}-${{ github.sha }}
         path: ./artifacts
+
   upload:
-    if: github.event_name != 'pull_request'
+    concurrency: ${{ github.workflow }}
+    permissions:
+      contents: read
+    if: github.event_name != 'pull_request' && github.ref != 'refs/heads/dev' && !startsWith(github.ref, 'refs/heads/dev/')
     needs: build
     runs-on: ubuntu-latest
     steps:
     - name: Clone repository
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
     - name: Get *.deb files
-      uses: actions/download-artifact@v2
+      uses: actions/download-artifact@v4
       with:
-        name: termux-packages-${{ github.sha }}
         path: ./
-    - name: Upload to packages.termux.org
+    - name: Upload to packages.termux.dev
       env:
-        REPOSITORY_NAME: termux-main
-        REPOSITORY_DISTRIBUTION: stable
+        REPOSITORY_URL: https://packages.termux.dev/aptly-api
       run: |
-        for archive in *.tar; do
+        GITHUB_SHA=${{ github.sha }}
+        APTLY_API_AUTH=${{ secrets.APTLY_API_AUTH }}
+        GPG_PASSPHRASE=${{ secrets.GPG_PASSPHRASE }}
+
+        source scripts/aptly_api.sh
+
+        for archive in debs-*/debs-{aarch64,arm,i686,x86_64}-${{ github.sha }}.tar; do
           tar xf "$archive"
         done
 
-        # Function for deleting temporary directory with uploaded files from
-        # the server.
-        aptly_delete_dir() {
-          echo "[*] Deleting uploads temporary directory."
+        for repo in $(jq --raw-output 'del(.pkg_format) | keys | .[]' repo.json); do
+          export REPOSITORY_NAME=$(jq --raw-output '.["'$repo'"].name' repo.json)
+          export REPOSITORY_DISTRIBUTION=$(jq --raw-output '.["'$repo'"].distribution' repo.json)
 
-          curl_response=$(
-            curl \
-              --silent \
-              --user "${{ secrets.APTLY_API_AUTH }}" \
-              --request DELETE \
-              --write-out "|%{http_code}" \
-              https://packages.termux.org/aptly-api/files/${REPOSITORY_NAME}-${{ github.sha }}
-          )
+          # Upload file to temporary directory.
+          uploaded_files=false
+          shopt -s nullglob
 
-          http_status_code=$(echo "$curl_response" | cut -d'|' -f2)
+          if [ -f debs/built_${REPOSITORY_NAME}_packages.txt ]; then
+            for filename in $(cat debs/built_${REPOSITORY_NAME}_packages.txt | sed -E 's/(..*)/debs\/\1_\*.deb debs\/\1-static_\*.deb/g'); do
+              if ! aptly_upload_file "$filename"; then
+                exit 1
+              fi
 
-          if [ "$http_status_code" != "200" ]; then
-            echo "[!] Server returned $http_status_code code while deleting temporary directory."
-          fi
-        }
+              uploaded_files=true
+            done
+            shopt -u nullglob
 
-        # Upload file to temporary directory.
-        uploaded_files=false
-        shopt -s nullglob
-        for filename in $(cat debs/built_packages.txt | sed -E 's/(..*)/debs\/\1_\*.deb debs\/\1-static_\*.deb/g'); do
-          curl_response=$(
-            curl \
-              --silent \
-              --user "${{ secrets.APTLY_API_AUTH }}" \
-              --request POST \
-              --form file=@${filename} \
-              --write-out "|%{http_code}" \
-              https://packages.termux.org/aptly-api/files/${REPOSITORY_NAME}-${{ github.sha }}
-          )
+            # Publishing repository changes.
+            if [ "$uploaded_files" = "true" ]; then
+              if ! aptly_add_to_repo; then
+                exit 1
+              fi
 
-          http_status_code=$(echo "$curl_response" | cut -d'|' -f2)
+              # Usually temporary directory is deleted automatically, but in certain cases it is left.
+              aptly_delete_dir
 
-          if [ "$http_status_code" = "200" ]; then
-            echo "[*] Uploaded: $(echo "$curl_response" | cut -d'|' -f1 | jq -r '.[]' | cut -d'/' -f2)"
-          else
-            # Manually cleaning up the temporary directory to reclaim disk space.
-            # Don't rely on scheduled server-side scripts.
-            echo "[!] Failed to upload '$filename'. Server returned $http_status_code code."
-            echo "[!] Aborting any further uploads."
-            aptly_delete_dir
-            exit 1
-          fi
-
-          uploaded_files=true
-        done
-        shopt -u nullglob
-
-        # Publishing repository changes.
-        if [ "$uploaded_files" = "true" ]; then
-          echo "[*] Adding packages to repository '$REPOSITORY_NAME'..."
-
-          curl_response=$(
-            curl \
-              --silent \
-              --user "${{ secrets.APTLY_API_AUTH }}" \
-              --request POST \
-              --write-out "|%{http_code}" \
-              https://packages.termux.org/aptly-api/repos/${REPOSITORY_NAME}/file/${REPOSITORY_NAME}-${{ github.sha }}
-          )
-
-          http_status_code=$(echo "$curl_response" | cut -d'|' -f2)
-
-          if [ "$http_status_code" = "200" ]; then
-            warnings=$(echo "$curl_response" | cut -d'|' -f1 | jq '.Report.Warnings' | jq -r '.[]')
-            if [ -n "$warnings" ]; then
-              echo "[!] WARNINGS (NON-CRITICAL):"
-              echo
-              echo "$warnings"
-              echo
+              # Final part to make changes appear in web root.
+              if ! aptly_publish_repo; then
+                exit 1
+              fi
             fi
-
-            # Upload directory is usually deleted automatically once all deb
-            # files were added without issues. Attempting to do this manually
-            # in case it left for some reason (e.g. some debs not added due to
-            # conflicts).
-            aptly_delete_dir
-          else
-            echo "[*] Server returned $http_status_code. Not publishing repository!"
-            aptly_delete_dir
-            exit 1
           fi
-
-          # Final part to make changes appear in web root.
-          echo "[*] Publishing repository changes..."
-          set +e
-          curl \
-            --silent \
-            --user "${{ secrets.APTLY_API_AUTH }}" \
-            --header 'Content-Type: application/json' \
-            --request PUT \
-            --data '{"Signing": {"Passphrase": "${{ secrets.GPG_PASSPHRASE }}"}}' \
-            https://packages.termux.org/aptly-api/publish/${REPOSITORY_NAME}/${REPOSITORY_DISTRIBUTION}
-          exit_code=$?
-          echo
-
-          if [ "$exit_code" = 0 ]; then
-            echo "[*] Repository updated successfully."
-          elif [ "$exit_code" = 52 ]; then
-            echo "[!] Repository update takes more time than expected, server returned empty response."
-            echo "[!] This is expected if large amount of data has been submitted."
-          else
-            echo "[!] curl exited with error code $exit_status."
-            exit "$exit_code"
-          fi
-        fi
+        done

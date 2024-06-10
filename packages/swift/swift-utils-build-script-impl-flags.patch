@@ -2,37 +2,65 @@ diff --git a/swift/utils/build-script-impl b/swift/utils/build-script-impl
 index b1d060328bc..218c9215260 100755
 --- a/swift/utils/build-script-impl
 +++ b/swift/utils/build-script-impl
-@@ -1060,7 +1064,7 @@ function get_host_install_destdir() {
-             # This assumes that all hosts are merged to the lipo.
-             local host_install_destdir="${INSTALL_DESTDIR}"
-         else
--            local host_install_destdir="${INSTALL_DESTDIR}/${host}"
-+            local host_install_destdir="${INSTALL_DESTDIR}"
-         fi
-     else
-         local host_install_destdir="${INSTALL_DESTDIR}"
-@@ -1546,6 +1578,10 @@ for host in "${ALL_HOSTS[@]}"; do
-                 )
-                 if [[ $(is_cross_tools_host ${host}) ]] ; then
-                     cmake_options+=("${SWIFT_TARGET_CMAKE_OPTIONS[@]}")
-+                    cmake_options+=(
-+                        -DCMAKE_C_FLAGS="$CFLAGS --target=$CCTERMUX_HOST_PLATFORM $CPPFLAGS"
-+                        -DCMAKE_CXX_FLAGS="$CXXFLAGS --target=$CCTERMUX_HOST_PLATFORM $CPPFLAGS"
-+                    )
-                 fi
-                 build_targets=(all)
-                 ;;
-@@ -1652,6 +1688,10 @@ for host in "${ALL_HOSTS[@]}"; do
-                         -DLLVM_NATIVE_BUILD=$(build_directory "${LOCAL_HOST}" llvm)
+@@ -1726,6 +1726,7 @@
                      )
-                     cmake_options+=("${SWIFT_TARGET_CMAKE_OPTIONS[@]}")
-+                    cmake_options+=(
-+                        -DCMAKE_CXX_FLAGS="$CXXFLAGS --target=$CCTERMUX_HOST_PLATFORM $CPPFLAGS"
-+                        -DCMAKE_EXE_LINKER_FLAGS="$LDFLAGS --target=$CCTERMUX_HOST_PLATFORM"
-+                    )
                  fi
  
-                 ;;
++                cross_c_flags=""
+                 if [[ ! "${SKIP_BUILD_ANDROID}" ]] ||
+                    [[ $(is_cross_tools_host ${host}) && "${host}" == "android-"* ]]; then
+                     cmake_options=(
+@@ -1733,6 +1734,7 @@
+                         -DSWIFT_ANDROID_DEPLOY_DEVICE_PATH:STRING="${ANDROID_DEPLOY_DEVICE_PATH}"
+                         -DSWIFT_SDK_ANDROID_ARCHITECTURES:STRING="${ANDROID_ARCH}"
+                     )
++                    cross_c_flags="--target=$CCTERMUX_HOST_PLATFORM"
+                 fi
+ 
+                 if [[ ! "${SKIP_BUILD_WASM}" ]]; then
+@@ -1785,6 +1788,9 @@
+                         "${cmake_options[@]}"
+                         -DLLVM_TABLEGEN=$(build_directory "${LOCAL_HOST}" llvm)/bin/llvm-tblgen
+                         -DSWIFT_INCLUDE_TEST_BINARIES:BOOL=FALSE
++                        -DCMAKE_FIND_ROOT_PATH:PATH="${CROSS_COMPILE_DEPS_PATH}"
++                        -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=NEVER
++                        -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY
+                     )
+                 fi
+ 
+@@ -1800,6 +1806,13 @@
+                     native_swift_tools_path="${NATIVE_SWIFT_TOOLS_PATH}"
+                 fi
+ 
++                if [[ $(is_cross_tools_host ${host}) && "${host}" != "macosx-"* ]] ; then
++                    cmake_options=(
++                        "${cmake_options[@]}"
++                        -DCMAKE_Swift_COMPILER:PATH="${native_swift_tools_path}/swiftc"
++                    )
++                fi
++
+                 if [ "${BUILD_LLVM}" == "0" ] ; then
+                     cmake_options=(
+                         "${cmake_options[@]}"
+@@ -1820,8 +1833,8 @@
+ 
+                 cmake_options=(
+                     "${cmake_options[@]}"
+-                    -DCMAKE_C_FLAGS="$(swift_c_flags ${host})"
+-                    -DCMAKE_CXX_FLAGS="$(swift_c_flags ${host})"
++                    -DCMAKE_C_FLAGS="$(swift_c_flags ${host}) ${cross_c_flags}"
++                    -DCMAKE_CXX_FLAGS="$(swift_c_flags ${host}) ${cross_c_flags}"
+                     -DCMAKE_C_FLAGS_RELWITHDEBINFO="-O2 -DNDEBUG"
+                     -DCMAKE_CXX_FLAGS_RELWITHDEBINFO="-O2 -DNDEBUG"
+                     -DCMAKE_BUILD_TYPE:STRING="${SWIFT_BUILD_TYPE}"
+@@ -1878,6 +1891,7 @@
+                     -DLIBDISPATCH_CMAKE_BUILD_TYPE:STRING="${LIBDISPATCH_BUILD_TYPE}"
+                     -DSWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE:PATH="${SWIFT_SYNTAX_SOURCE_DIR}"
+                     -DSWIFT_ENABLE_BACKTRACING:BOOL=$(true_false "${SWIFT_ENABLE_BACKTRACING}")
++                    -DSWIFT_CLANG_RESOURCE_DIR_SYMLINK_INSTALL_TARGET:STRING="../clang/${TERMUX_CLANG_VERSION}"
+                     "${swift_cmake_options[@]}"
+                 )
+ 
 @@ -2045,6 +2045,8 @@ for host in "${ALL_HOSTS[@]}"; do
                      cmake_options+=(
                          -DCMAKE_FIND_ROOT_PATH:PATH="${CROSS_COMPILE_DEPS_PATH}"
@@ -42,10 +70,11 @@ index b1d060328bc..218c9215260 100755
                      )
                  fi
  
-@@ -2199,6 +2201,8 @@ for host in "${ALL_HOSTS[@]}"; do
+@@ -2199,6 +2201,9 @@ for host in "${ALL_HOSTS[@]}"; do
+                     # https://cmake.org/cmake/help/latest/command/find_package.html
                      cmake_options+=(
                          -DCMAKE_FIND_ROOT_PATH:PATH="${CROSS_COMPILE_DEPS_PATH}"
-                         -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=NEVER
++                        -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=NEVER
 +                        -DCMAKE_C_FLAGS="$CFLAGS --target=$CCTERMUX_HOST_PLATFORM $CPPFLAGS"
 +                        -DCMAKE_EXE_LINKER_FLAGS="$LDFLAGS --target=$CCTERMUX_HOST_PLATFORM"
                      )

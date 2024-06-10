@@ -1,14 +1,11 @@
-LLVM_INSTALL_DIR=$TERMUX_PKG_BUILDDIR/llvm-install
-
 TERMUX_PKG_HOMEPAGE=https://github.com/ldc-developers/ldc
 TERMUX_PKG_DESCRIPTION="D programming language compiler, built with LLVM"
 TERMUX_PKG_LICENSE="BSD 3-Clause"
 TERMUX_PKG_MAINTAINER="@termux"
-TERMUX_PKG_VERSION=()
-TERMUX_PKG_VERSION+=(1.27.0)
-TERMUX_PKG_VERSION+=(12.0.1)  # LLVM version
-TERMUX_PKG_VERSION+=(2.097.1) # TOOLS version
-TERMUX_PKG_VERSION+=(1.26.1)  # DUB version
+TERMUX_PKG_VERSION=(1.30.0)
+TERMUX_PKG_VERSION+=(14.0.3)  # LLVM version
+TERMUX_PKG_VERSION+=(2.100.1) # TOOLS version
+TERMUX_PKG_VERSION+=(1.30.0)  # DUB version
 
 TERMUX_PKG_SRCURL=(https://github.com/ldc-developers/ldc/releases/download/v${TERMUX_PKG_VERSION}/ldc-${TERMUX_PKG_VERSION}-src.tar.gz
 		   https://github.com/ldc-developers/llvm-project/releases/download/ldc-v${TERMUX_PKG_VERSION[1]}/llvm-${TERMUX_PKG_VERSION[1]}.src.tar.xz
@@ -16,13 +13,16 @@ TERMUX_PKG_SRCURL=(https://github.com/ldc-developers/ldc/releases/download/v${TE
 		   https://github.com/dlang/tools/archive/v${TERMUX_PKG_VERSION[2]}.tar.gz
 		   https://github.com/dlang/dub/archive/v${TERMUX_PKG_VERSION[3]}.tar.gz
 		   https://github.com/ldc-developers/ldc/releases/download/v${TERMUX_PKG_VERSION}/ldc2-${TERMUX_PKG_VERSION}-linux-x86_64.tar.xz)
-TERMUX_PKG_SHA256=(f2dc19ad2fffd4fcef2717ccdaf929ed082c57c9c89c05bdaaa6df87b9999e0b
-		   9fc126f4ddfc80c5135ab182b3a4e8764282c15b9462161f8fb0c5ee00126f89
-		   0bea6089518395ca65cf58b0a450716c5c99ce1f041079d3aa42d280ace15ca4
-		   e42c3bac10266e44cb4939124fce0392ce155979c1791981e30d8166f44c03ab
-		   1e458599306bdfbe498418363c0e375bd75e9ae99676033ef3035f43cbd43dfd
-		   bf00f5c3eadf65980dc7d70590cc869f93e289eafbc84a263220795c6067922e)
-TERMUX_PKG_DEPENDS="clang, libc++, zlib"
+TERMUX_PKG_SHA256=(fdbb376f08242d917922a6a22a773980217fafa310046fc5d6459490af23dacd
+		   9638d8d0b6a43d9cdc53699bec19e6bc9bef98f5950b99e6b8c1ec373aee4fa7
+		   301137841d1e3401f59b3828d2a9ac86a1b826b89265d55541a2fd6ca2a595eb
+		   54bde9a979d70952690a517f90de8d76631fa9a2f7252af7278dafbcaaa42d54
+		   840cd65bf5f0dd06ca688f63b94d71fccd92b526bbf1d3892fe5535b1e85c10e
+		   5784d4cc47d0845af0897d3b7473a08dd0281a4cdabac0a486740840d014fde1)
+TERMUX_PKG_AUTO_UPDATE=false
+# dub dlopen()s libcurl.so:
+TERMUX_PKG_DEPENDS="binutils-bin, binutils-is-llvm | binutils, clang, libc++, libcurl, zlib"
+TERMUX_PKG_BUILD_DEPENDS="binutils-cross"
 TERMUX_PKG_NO_STATICSPLIT=true
 TERMUX_PKG_HOSTBUILD=true
 TERMUX_PKG_FORCE_CMAKE=true
@@ -34,13 +34,13 @@ TERMUX_PKG_EXTRA_CONFIGURE_ARGS="
 -DLLVM_ENABLE_UNWIND_TABLES=OFF
 -DLLVM_ENABLE_TERMINFO=OFF
 -DLLVM_ENABLE_LIBEDIT=OFF
+-DLLVM_INCLUDE_BENCHMARKS=OFF
 -DCOMPILER_RT_INCLUDE_TESTS=OFF
 -DLLVM_INCLUDE_TESTS=OFF
 -DLLVM_TABLEGEN=$TERMUX_PKG_HOSTBUILD_DIR/bin/llvm-tblgen
 -DLLVM_CONFIG_PATH=$TERMUX_PKG_HOSTBUILD_DIR/bin/llvm-config
--DPYTHON_EXECUTABLE=$(which python3)
+-DPYTHON_EXECUTABLE=$(command -v python3)
 -DLLVM_TARGETS_TO_BUILD='AArch64;ARM;WebAssembly;X86'
--DCMAKE_INSTALL_PREFIX=$LLVM_INSTALL_DIR
 "
 
 termux_step_post_get_source() {
@@ -71,6 +71,7 @@ termux_step_host_build() {
 		-DCMAKE_BUILD_TYPE=Release \
 		-DLLVM_BUILD_TOOLS=OFF \
 		-DLLVM_BUILD_UTILS=OFF \
+		-DLLVM_INCLUDE_BENCHMARKS=OFF \
 		-DCOMPILER_RT_INCLUDE_TESTS=OFF \
 		-DLLVM_INCLUDE_TESTS=OFF
 	ninja -j $TERMUX_MAKE_PROCESSES llvm-tblgen
@@ -78,6 +79,18 @@ termux_step_host_build() {
 
 # Just before CMake invokation for LLVM:
 termux_step_pre_configure() {
+	PATH=$TERMUX_PREFIX/opt/binutils/cross/$TERMUX_HOST_PLATFORM/bin:$PATH
+
+	LLVM_INSTALL_DIR=$TERMUX_PKG_BUILDDIR/llvm-install
+	TERMUX_PKG_EXTRA_CONFIGURE_ARGS+=" -DCMAKE_INSTALL_PREFIX=$LLVM_INSTALL_DIR"
+
+	if [ "$TERMUX_ARCH" == "arm" ]; then
+		# [...]/ldc/src/llvm/projects/compiler-rt/lib/builtins/clear_cache.c:85:20:
+		# error: write to reserved register 'R7'
+		#   __asm __volatile("svc 0x0"
+		#                    ^
+		CFLAGS="${CFLAGS//-mthumb/}"
+	fi
 	LDFLAGS=" -L$TERMUX_PKG_BUILDDIR/llvm/lib $LDFLAGS -lc++_shared"
 
 	# Don't build compiler-rt sanitizers:
@@ -128,7 +141,7 @@ termux_step_post_configure() {
 
 	# Replace non-native llvm-config executable with bash script,
 	# as it is going to be invoked during LDC CMake config.
-	sed $TERMUX_PKG_SRCDIR/.azure-pipelines/android-llvm-config.in \
+	sed $TERMUX_PKG_SRCDIR/.github/actions/3-build-cross/android-llvm-config.in \
 		-e "s|@LLVM_VERSION@|${TERMUX_PKG_VERSION[1]}|g" \
 		-e "s|@LLVM_INSTALL_DIR@|$LLVM_INSTALL_DIR|g" \
 		-e "s|@TERMUX_PKG_SRCDIR@|$TERMUX_PKG_SRCDIR/llvm|g" \
@@ -175,6 +188,9 @@ termux_step_make() {
 	export DFLAGS="$DFLAGS -linker=bfd -L-L$TERMUX_PKG_BUILDDIR/ldc-build-runtime.tmp/lib"
 	if [ $TERMUX_ARCH = arm ]; then export DFLAGS="$DFLAGS -L--fix-cortex-a8"; fi
 
+	# https://github.com/termux/termux-packages/issues/7188
+	DFLAGS+=" -L-rpath=$TERMUX_PREFIX/lib"
+
 	cd  $TERMUX_PKG_SRCDIR/dlang-tools
 	$DMD -w -de -dip1000 rdmd.d -of=$TERMUX_PKG_BUILDDIR/bin/rdmd
 	$DMD -w -de -dip1000 ddemangle.d -of=$TERMUX_PKG_BUILDDIR/bin/ddemangle
@@ -192,11 +208,6 @@ termux_step_make_install() {
 	cp $TERMUX_PKG_BUILDDIR/ldc-build-runtime.tmp/lib/*.a $TERMUX_PREFIX/lib
 	cp lib/libldc_rt.* $TERMUX_PREFIX/lib || true
 	sed "s|$TERMUX_PREFIX/|%%ldcbinarypath%%/../|g" bin/ldc2_install.conf > $TERMUX_PREFIX/etc/ldc2.conf
-	if [ $TERMUX_ARCH = aarch64 ]; then
-		# LDC defaults to `-linker=bfd` for Android, but Termux has no ld.bfd on AArch64 (where it's the default ld linker)
-		sed -i 's|"-link-defaultlib-shared=false",|"-link-defaultlib-shared=false", "-linker=",|' $TERMUX_PREFIX/etc/ldc2.conf
-	fi
-	cat $TERMUX_PREFIX/etc/ldc2.conf
 
 	rm -Rf $TERMUX_PREFIX/include/d
 	mkdir $TERMUX_PREFIX/include/d

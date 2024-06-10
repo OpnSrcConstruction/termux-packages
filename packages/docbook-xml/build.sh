@@ -4,6 +4,7 @@ TERMUX_PKG_LICENSE="MIT"
 TERMUX_PKG_MAINTAINER="@termux"
 TERMUX_PKG_VERSION=4.5
 TERMUX_PKG_REVISION=4
+TERMUX_PKG_AUTO_UPDATE=false
 TERMUX_PKG_DEPENDS="libxml2-utils"
 TERMUX_PKG_PLATFORM_INDEPENDENT=true
 TERMUX_PKG_BUILD_IN_SRC=true
@@ -110,7 +111,7 @@ termux_step_make_install() {
 termux_step_create_debscripts() {
 	cat <<- EOF > ./postinst
 	#!$TERMUX_PREFIX/bin/sh
-	if [ "\$1" = "configure" ]; then
+	if [ "$TERMUX_PACKAGE_FORMAT" = "pacman" ] || [ "\$1" = "configure" ]; then
 		if [ ! -e "$TERMUX_PREFIX/etc/xml/catalog" ]; then
 			xmlcatalog --noout --create "$TERMUX_PREFIX/etc/xml/catalog"
 		else
@@ -138,7 +139,7 @@ termux_step_create_debscripts() {
 
 	cat <<- EOF > ./prerm
 	#!$TERMUX_PREFIX/bin/sh
-	if [ "\$1" = "remove" ]; then
+	if [ "$TERMUX_PACKAGE_FORMAT" = "pacman" ] || [ "\$1" = "remove" ]; then
 		xmlcatalog --noout --del "file://$TERMUX_PREFIX/etc/xml/docbook-xml" \
 			$TERMUX_PREFIX/etc/xml/catalog
 	fi

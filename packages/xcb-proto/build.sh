@@ -2,15 +2,15 @@
 TERMUX_PKG_HOMEPAGE=https://xcb.freedesktop.org/
 TERMUX_PKG_DESCRIPTION="XML-XCB protocol descriptions"
 TERMUX_PKG_LICENSE="MIT"
-TERMUX_PKG_MAINTAINER="Leonid Pliushch <leonid.pliushch@gmail.com>"
-TERMUX_PKG_VERSION=1.14.1
+TERMUX_PKG_MAINTAINER="@termux"
+TERMUX_PKG_VERSION="1.16.0"
 TERMUX_PKG_SRCURL=https://xorg.freedesktop.org/archive/individual/proto/xcb-proto-$TERMUX_PKG_VERSION.tar.xz
-TERMUX_PKG_SHA256=f04add9a972ac334ea11d9d7eb4fc7f8883835da3e4859c9afa971efdf57fcc3
+TERMUX_PKG_SHA256=a75a1848ad2a89a82d841a51be56ce988ff3c63a8d6bf4383ae3219d8d915119
+TERMUX_PKG_AUTO_UPDATE=true
 TERMUX_PKG_PLATFORM_INDEPENDENT=true
 TERMUX_PKG_CONFLICTS="xcbproto"
 TERMUX_PKG_REPLACES="xcbproto"
-
-termux_step_pre_configure() {
-	python_version=$(. $TERMUX_SCRIPTDIR/packages/python/build.sh; echo $_MAJOR_VERSION)
-	TERMUX_PKG_RM_AFTER_INSTALL="lib/python${python_version}/site-packages/xcbgen/__pycache__"
-}
+TERMUX_PKG_EXTRA_CONFIGURE_ARGS="
+PYTHON=python${TERMUX_PYTHON_VERSION}
+am_cv_python_pythondir=$TERMUX_PYTHON_HOME/site-packages
+"

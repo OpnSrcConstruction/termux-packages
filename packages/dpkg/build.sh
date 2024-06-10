@@ -2,12 +2,13 @@ TERMUX_PKG_HOMEPAGE=https://packages.debian.org/dpkg
 TERMUX_PKG_DESCRIPTION="Debian package management system"
 TERMUX_PKG_LICENSE="GPL-2.0"
 TERMUX_PKG_MAINTAINER="@termux"
-TERMUX_PKG_VERSION=1.20.9
-TERMUX_PKG_REVISION=5
+TERMUX_PKG_VERSION="1.22.1"
+TERMUX_PKG_REVISION=1
 TERMUX_PKG_SRCURL=https://mirrors.kernel.org/debian/pool/main/d/dpkg/dpkg_${TERMUX_PKG_VERSION}.tar.xz
-TERMUX_PKG_SHA256=5ce242830f213b5620f08e6c4183adb1ef4dc9da28d31988a27c87c71fe534ce
-# with the extract.c.patch we remove the -p and --warning=no-timestamp tar options so we can use busybox tar
-TERMUX_PKG_DEPENDS="bzip2, coreutils, diffutils, gzip, less, libbz2, liblzma, tar, xz-utils, zlib"
+TERMUX_PKG_SHA256=5a4824e9869494e501953c7466ab1960a7fa23d9b0b911b8a6f113094e0226cf
+TERMUX_PKG_AUTO_UPDATE=false
+TERMUX_PKG_DEPENDS="bzip2, coreutils, diffutils, gzip, less, libbz2, liblzma, libmd, tar, xz-utils, zlib, zstd"
+TERMUX_PKG_ANTI_BUILD_DEPENDS="clang"
 TERMUX_PKG_BREAKS="dpkg-dev"
 TERMUX_PKG_REPLACES="dpkg-dev"
 TERMUX_PKG_ESSENTIAL=true
@@ -21,6 +22,7 @@ dpkg_cv_c99_snprintf=yes
 HAVE_SETEXECFILECON_FALSE=#
 --host=${TERMUX_ARCH}-linux
 --without-selinux
+DPKG_PAGER=less
 "
 
 TERMUX_PKG_RM_AFTER_INSTALL="
@@ -37,7 +39,6 @@ bin/dpkg-maintscript-helper
 bin/dpkg-mergechangelogs
 bin/dpkg-name
 bin/dpkg-parsechangelog
-bin/dpkg-scanpackages
 bin/dpkg-scansources
 bin/dpkg-shlibdeps
 bin/dpkg-source
@@ -59,7 +60,6 @@ share/man/man1/dpkg-maintscript-helper.1
 share/man/man1/dpkg-mergechangelogs.1
 share/man/man1/dpkg-name.1
 share/man/man1/dpkg-parsechangelog.1
-share/man/man1/dpkg-scanpackages.1
 share/man/man1/dpkg-scansources.1
 share/man/man1/dpkg-shlibdeps.1
 share/man/man1/dpkg-source.1
@@ -67,7 +67,6 @@ share/man/man1/dpkg-statoverride.1
 share/man/man1/dpkg-vendor.1
 share/man/man3
 share/man/man5
-share/perl5
 share/polkit-1
 "
 

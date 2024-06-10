@@ -1,18 +1,34 @@
-Submitted upstream at:
-https://bitbucket.org/multicoreware/x265/pull-requests/31
-
-diff -u -r ../x265_2.2/source/CMakeLists.txt ./source/CMakeLists.txt
---- ../x265_2.2/source/CMakeLists.txt	2016-12-23 00:57:39.000000000 -0500
-+++ ./source/CMakeLists.txt	2017-01-03 18:42:19.823674722 -0500
-@@ -80,7 +80,10 @@
+diff --git a/source/CMakeLists.txt b/source/CMakeLists.txt
+index a407271b4..6ecfda3ee 100755
+--- a/source/CMakeLists.txt
++++ b/source/CMakeLists.txt
+@@ -44,7 +44,7 @@ else()
+     string(TOLOWER "${CMAKE_SYSTEM_PROCESSOR}" SYSPROC)
  endif()
- 
- if(UNIX)
--    list(APPEND PLATFORM_LIBS pthread)
-+    find_library(LIBPTHREAD pthread)
-+    if(LIBPTHREAD)
-+         list(APPEND PLATFORM_LIBS pthread)
-+    endif()
-     find_library(LIBRT rt)
-     if(LIBRT)
-         list(APPEND PLATFORM_LIBS rt)
+ set(X86_ALIASES x86 i386 i686 x86_64 amd64)
+-set(ARM_ALIASES armv6l armv7l)
++set(ARM_ALIASES armv6l armv7l armv7-a)
+ set(ARM64_ALIASES arm64 arm64e aarch64)
+ list(FIND X86_ALIASES "${SYSPROC}" X86MATCH)
+ list(FIND ARM_ALIASES "${SYSPROC}" ARMMATCH)
+@@ -251,16 +251,12 @@ if(GCC)
+         message(STATUS "cross compile arm")
+ 		set(ARM_ARGS -march=armv6 -mfloat-abi=soft -mfpu=vfp -marm -fPIC)
+     elseif(ARM)
+-        find_package(Neon)
+-        if(CPU_HAS_NEON)
+-            set(ARM_ARGS -mcpu=native -mfloat-abi=hard -mfpu=neon -marm -fPIC)
+-            add_definitions(-DHAVE_NEON)
+-        else()
+-            set(ARM_ARGS -mcpu=native -mfloat-abi=hard -mfpu=vfp -marm)
+-        endif()
++        # Follow termux_step_setup_toolchain.sh
++        set(ARM_ARGS @TERMUX_CLANG_TARGET_ARM@ -march=armv7-a -mfpu=neon -mfloat-abi=softfp -mthumb -fPIC)
++        add_definitions(-DHAVE_NEON)
+     endif()
+ 	if(ARM64 OR CROSS_COMPILE_ARM64)
+-	    set(ARM_ARGS -fPIC -flax-vector-conversions)
++	    set(ARM_ARGS @TERMUX_CLANG_TARGET_AARCH64@ -fPIC -flax-vector-conversions)
+         find_package(Neon)
+         if(CPU_HAS_NEON)
+             add_definitions(-DHAVE_NEON)

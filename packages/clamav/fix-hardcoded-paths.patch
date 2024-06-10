@@ -22,10 +22,10 @@ diff -uNr clamav-0.102.0/libclamav/others_common.c clamav-0.102.0.mod/libclamav/
  #endif /* _WIN32 */
  #endif /* P_tmpdir */
  
-diff -uNr clamav-0.102.0/shared/optparser.c clamav-0.102.0.mod/shared/optparser.c
---- clamav-0.102.0/shared/optparser.c	2019-10-01 20:24:09.000000000 +0300
+diff -uNr clamav-0.102.0/common/optparser.c clamav-0.102.0.mod/shared/optparser.c
+--- clamav-0.102.0/common/optparser.c	2019-10-01 20:24:09.000000000 +0300
 +++ clamav-0.102.0.mod/shared/optparser.c	2019-11-02 23:40:11.705398185 +0200
-@@ -192,7 +192,7 @@
+@@ -254,7 +254,7 @@
  
      {"PreludeAnalyzerName", "prelude-analyzer-name", 0, CLOPT_TYPE_STRING, NULL, -1, NULL, 0, OPT_CLAMD, "Name of the analyzer as seen in prewikka", ""},
  
@@ -34,12 +34,12 @@ diff -uNr clamav-0.102.0/shared/optparser.c clamav-0.102.0.mod/shared/optparser.
  
      {"LogFileUnlock", NULL, 0, CLOPT_TYPE_BOOL, MATCH_BOOL, 0, NULL, 0, OPT_CLAMD | OPT_MILTER, "By default the log file is locked for writing and only a single\ndaemon process can write to it. This option disables the lock.", "yes"},
  
-@@ -212,17 +212,17 @@
+@@ -274,11 +274,11 @@
  
      {"ExtendedDetectionInfo", NULL, 0, CLOPT_TYPE_BOOL, MATCH_BOOL, 0, NULL, 0, OPT_CLAMD, "Log additional information about the infected file, such as its\nsize and hash, together with the virus name.", "yes"},
  
--    {"PidFile", "pid", 'p', CLOPT_TYPE_STRING, NULL, -1, NULL, 0, OPT_CLAMD | OPT_FRESHCLAM | OPT_MILTER, "Save the process ID to a file.", "/var/run/clam.pid"},
-+    {"PidFile", "pid", 'p', CLOPT_TYPE_STRING, NULL, -1, NULL, 0, OPT_CLAMD | OPT_FRESHCLAM | OPT_MILTER, "Save the process ID to a file.", "@TERMUX_PREFIX@/var/run/clam.pid"},
+-    {"PidFile", "pid", 'p', CLOPT_TYPE_STRING, NULL, -1, NULL, 0, OPT_CLAMD | OPT_FRESHCLAM | OPT_MILTER, "Save the process ID to a file.", "/run/clamav/clam.pid"},
++    {"PidFile", "pid", 'p', CLOPT_TYPE_STRING, NULL, -1, NULL, 0, OPT_CLAMD | OPT_FRESHCLAM | OPT_MILTER, "Save the process ID to a file.", "@TERMUX_PREFIX@/run/clamav/clam.pid"},
  
 -    {"TemporaryDirectory", "tempdir", 0, CLOPT_TYPE_STRING, NULL, -1, NULL, 0, OPT_CLAMD | OPT_MILTER | OPT_CLAMSCAN | OPT_SIGTOOL, "This option allows you to change the default temporary directory.", "/tmp"},
 +    {"TemporaryDirectory", "tempdir", 0, CLOPT_TYPE_STRING, NULL, -1, NULL, 0, OPT_CLAMD | OPT_MILTER | OPT_CLAMSCAN | OPT_SIGTOOL, "This option allows you to change the default temporary directory.", "@TERMUX_PREFIX@/tmp"},
@@ -49,24 +49,26 @@ diff -uNr clamav-0.102.0/shared/optparser.c clamav-0.102.0.mod/shared/optparser.
  
      {"OfficialDatabaseOnly", "official-db-only", 0, CLOPT_TYPE_BOOL, MATCH_BOOL, 0, NULL, 0, OPT_CLAMD | OPT_CLAMSCAN, "Only load the official signatures published by the ClamAV project.", "no"},
  
+@@ -286,7 +286,7 @@
+ 
      {"YaraRules", "yara-rules", 0, CLOPT_TYPE_STRING, NULL, 0, NULL, 0, OPT_CLAMSCAN, "By default, yara rules will be loaded. This option allows you to exclude yara rules when scanning and also to scan only using yara rules. Valid options are yes|no|only", "yes"},
  
--    {"LocalSocket", NULL, 0, CLOPT_TYPE_STRING, NULL, -1, NULL, 0, OPT_CLAMD, "Path to a local socket file the daemon will listen on.", "/tmp/clamd.socket"},
-+    {"LocalSocket", NULL, 0, CLOPT_TYPE_STRING, NULL, -1, NULL, 0, OPT_CLAMD, "Path to a local socket file the daemon will listen on.", "@TERMUX_PREFIX@/tmp/clamd.socket"},
+-    {"LocalSocket", NULL, 0, CLOPT_TYPE_STRING, NULL, -1, NULL, 0, OPT_CLAMD, "Path to a local socket file the daemon will listen on.", "/run/clamav/clamd.sock"},
++    {"LocalSocket", NULL, 0, CLOPT_TYPE_STRING, NULL, -1, NULL, 0, OPT_CLAMD, "Path to a local socket file the daemon will listen on.", "@TERMUX_PREFIX@/run/clamav/clamd.sock"},
  
      {"LocalSocketGroup", NULL, 0, CLOPT_TYPE_STRING, NULL, -1, NULL, 0, OPT_CLAMD, "Sets the group ownership on the unix socket.", "virusgroup"},
  
-@@ -271,7 +271,7 @@
+@@ -337,7 +337,7 @@
  
      {"DisableCache", "disable-cache", 0, CLOPT_TYPE_BOOL, MATCH_BOOL, 0, NULL, 0, OPT_CLAMD | OPT_CLAMSCAN, "This option allows you to disable clamd's caching feature.", "no"},
  
--    {"VirusEvent", NULL, 0, CLOPT_TYPE_STRING, NULL, -1, NULL, 0, OPT_CLAMD, "Execute a command when a virus is found. In the command string %v will be\nreplaced with the virus name. Additionally, two environment variables will\nbe defined: $CLAM_VIRUSEVENT_FILENAME and $CLAM_VIRUSEVENT_VIRUSNAME.", "/usr/bin/mailx -s \"ClamAV VIRUS ALERT: %v\" alert < /dev/null"},
-+    {"VirusEvent", NULL, 0, CLOPT_TYPE_STRING, NULL, -1, NULL, 0, OPT_CLAMD, "Execute a command when a virus is found. In the command string %v will be\nreplaced with the virus name. Additionally, two environment variables will\nbe defined: $CLAM_VIRUSEVENT_FILENAME and $CLAM_VIRUSEVENT_VIRUSNAME.", "@TERMUX_PREFIX@/bin/mailx -s \"ClamAV VIRUS ALERT: %v\" alert < /dev/null"},
+-    {"VirusEvent", NULL, 0, CLOPT_TYPE_STRING, NULL, -1, NULL, 0, OPT_CLAMD, "Execute a command when a virus is found. In the command string %v will be\nreplaced with the virus name and %f will be replaced with the file name.\nAdditionally, two environment variables will be defined: $CLAM_VIRUSEVENT_FILENAME\nand $CLAM_VIRUSEVENT_VIRUSNAME.", "/usr/bin/mailx -s \"ClamAV VIRUS ALERT: %v\" alert < /dev/null"},
++    {"VirusEvent", NULL, 0, CLOPT_TYPE_STRING, NULL, -1, NULL, 0, OPT_CLAMD, "Execute a command when a virus is found. In the command string %v will be\nreplaced with the virus name and %f will be replaced with the file name.\nAdditionally, two environment variables will be defined: $CLAM_VIRUSEVENT_FILENAME\nand $CLAM_VIRUSEVENT_VIRUSNAME.", "@TERMUX_PREFIX@/usr/bin/mailx -s \"ClamAV VIRUS ALERT: %v\" alert < /dev/null"},
  
      {"ExitOnOOM", NULL, 0, CLOPT_TYPE_BOOL, MATCH_BOOL, 0, NULL, 0, OPT_CLAMD, "Stop the daemon when libclamav reports an out of memory condition.", "yes"},
  
-@@ -447,7 +447,7 @@
-     /* Freshclam-only entries */
+@@ -519,7 +519,7 @@
+     /* FreshClam-only entries */
  
      /* FIXME: drop this entry and use LogFile */
 -    {"UpdateLogFile", "log", 'l', CLOPT_TYPE_STRING, NULL, -1, NULL, 0, OPT_FRESHCLAM, "Save all reports to a log file.", "/var/log/freshclam.log"},
@@ -74,21 +76,24 @@ diff -uNr clamav-0.102.0/shared/optparser.c clamav-0.102.0.mod/shared/optparser.
  
      {"DatabaseOwner", "user", 'u', CLOPT_TYPE_STRING, NULL, -1, CLAMAVUSER, FLAG_REQUIRED, OPT_FRESHCLAM, "When started by root freshclam will drop privileges and switch to the user\ndefined in this option.", CLAMAVUSER},
  
-@@ -530,7 +530,7 @@
+@@ -601,7 +601,7 @@
  
-     {"ClamdSocket", NULL, 0, CLOPT_TYPE_STRING, NULL, -1, NULL, FLAG_MULTIPLE, OPT_MILTER, "Define the clamd socket to connect to for scanning.\nThis option is mandatory! Syntax:\n  ClamdSocket unix:path\n  ClamdSocket tcp:host:port\nThe first syntax specifies a local unix socket (needs an absolute path) e.g.:\n  ClamdSocket unix:/var/run/clamd/clamd.socket\nThe second syntax specifies a tcp local or remote tcp socket: the\nhost can be a hostname or an ip address; the \":port\" field is only required\nfor IPv6 addresses, otherwise it defaults to 3310\n  ClamdSocket tcp:192.168.0.1\nThis option can be repeated several times with different sockets or even\nwith the same socket: clamd servers will be selected in a round-robin fashion.", "tcp:scanner.mydomain:7357"},
+     {"ClamdSocket", NULL, 0, CLOPT_TYPE_STRING, NULL, -1, NULL, FLAG_MULTIPLE, OPT_MILTER, "Define the clamd socket to connect to for scanning.\nThis option is mandatory! Syntax:\n  ClamdSocket unix:path\n  ClamdSocket tcp:host:port\nThe first syntax specifies a local unix socket (needs an absolute path) e.g.:\n  ClamdSocket unix:/run/clamav/clamd.sock\nThe second syntax specifies a tcp local or remote tcp socket: the\nhost can be a hostname or an ip address; the \":port\" field is only required\nfor IPv6 addresses, otherwise it defaults to 3310\n  ClamdSocket tcp:192.168.0.1\nThis option can be repeated several times with different sockets or even\nwith the same socket: clamd servers will be selected in a round-robin fashion.", "tcp:scanner.mydomain:7357"},
  
--    {"MilterSocket", NULL, 0, CLOPT_TYPE_STRING, NULL, -1, NULL, 0, OPT_MILTER, "Define the interface through which we communicate with sendmail.\nThis option is mandatory! Possible formats are:\n[[unix|local]:]/path/to/file - to specify a unix domain socket;\ninet:port@[hostname|ip-address] - to specify an ipv4 socket;\ninet6:port@[hostname|ip-address] - to specify an ipv6 socket.", "/tmp/clamav-milter.socket\ninet:7357"},
-+    {"MilterSocket", NULL, 0, CLOPT_TYPE_STRING, NULL, -1, NULL, 0, OPT_MILTER, "Define the interface through which we communicate with sendmail.\nThis option is mandatory! Possible formats are:\n[[unix|local]:]/path/to/file - to specify a unix domain socket;\ninet:port@[hostname|ip-address] - to specify an ipv4 socket;\ninet6:port@[hostname|ip-address] - to specify an ipv6 socket.", "@TERMUX_PREFIX@/tmp/clamav-milter.socket\ninet:7357"},
+-    {"MilterSocket", NULL, 0, CLOPT_TYPE_STRING, NULL, -1, NULL, 0, OPT_MILTER, "Define the interface through which we communicate with sendmail.\nThis option is mandatory! Possible formats are:\n[[unix|local]:]/path/to/file - to specify a unix domain socket;\ninet:port@[hostname|ip-address] - to specify an ipv4 socket;\ninet6:port@[hostname|ip-address] - to specify an ipv6 socket.", "/tmp/clamav-milter.sock\ninet:7357"},
++    {"MilterSocket", NULL, 0, CLOPT_TYPE_STRING, NULL, -1, NULL, 0, OPT_MILTER, "Define the interface through which we communicate with sendmail.\nThis option is mandatory! Possible formats are:\n[[unix|local]:]/path/to/file - to specify a unix domain socket;\ninet:port@[hostname|ip-address] - to specify an ipv4 socket;\ninet6:port@[hostname|ip-address] - to specify an ipv6 socket.", "@TERMUX_PREFIX@/tmp/clamav-milter.sock\ninet:7357"},
  
      {"MilterSocketGroup", NULL, 0, CLOPT_TYPE_STRING, NULL, -1, NULL, 0, OPT_MILTER, "Define the group ownership for the (unix) milter socket.", "virusgroup"},
  
-@@ -554,7 +554,7 @@
+@@ -625,9 +625,9 @@
  
      {"Chroot", NULL, 0, CLOPT_TYPE_STRING, NULL, -1, NULL, 0, OPT_MILTER, "Chroot to the specified directory.\nChrooting is performed just after reading the config file and before\ndropping privileges.", "/newroot"},
  
--    {"Whitelist", NULL, 0, CLOPT_TYPE_STRING, NULL, -1, NULL, 0, OPT_MILTER, "This option specifies a file which contains a list of basic POSIX regular\nexpressions. Addresses (sent to or from - see below) matching these regexes\nwill not be scanned.  Optionally each line can start with the string \"From:\"\nor \"To:\" (note: no whitespace after the colon) indicating if it is,\nrespectively, the sender or recipient that is to be whitelisted.\nIf the field is missing, \"To:\" is assumed.\nLines starting with #, : or ! are ignored.", "/etc/whitelisted_addresses"},
-+    {"Whitelist", NULL, 0, CLOPT_TYPE_STRING, NULL, -1, NULL, 0, OPT_MILTER, "This option specifies a file which contains a list of basic POSIX regular\nexpressions. Addresses (sent to or from - see below) matching these regexes\nwill not be scanned.  Optionally each line can start with the string \"From:\"\nor \"To:\" (note: no whitespace after the colon) indicating if it is,\nrespectively, the sender or recipient that is to be whitelisted.\nIf the field is missing, \"To:\" is assumed.\nLines starting with #, : or ! are ignored.", "@TERMUX_PREFIX@/etc/clamav/whitelisted_addresses"},
+-    {"AllowList", NULL, 0, CLOPT_TYPE_STRING, NULL, -1, NULL, 0, OPT_MILTER, "This option specifies a file which contains a list of basic POSIX regular\nexpressions. Addresses (sent to or from - see below) matching these regexes\nwill not be scanned.  Optionally each line can start with the string \"From:\"\nor \"To:\" (note: no whitespace after the colon) indicating if it is,\nrespectively, the sender or recipient that is to be allowed.\nIf the field is missing, \"To:\" is assumed.\nLines starting with #, : or ! are ignored.", "/etc/allowed_addresses"},
++    {"AllowList", NULL, 0, CLOPT_TYPE_STRING, NULL, -1, NULL, 0, OPT_MILTER, "This option specifies a file which contains a list of basic POSIX regular\nexpressions. Addresses (sent to or from - see below) matching these regexes\nwill not be scanned.  Optionally each line can start with the string \"From:\"\nor \"To:\" (note: no whitespace after the colon) indicating if it is,\nrespectively, the sender or recipient that is to be allowed.\nIf the field is missing, \"To:\" is assumed.\nLines starting with #, : or ! are ignored.", "@TERMUX_PREFIX@/etc/allowed_addresses"},
+     // The Whitelist option should remain functional for a version or two, but has been deprecated in the documentation in favor of "AllowList".
+-    {"Whitelist", NULL, 0, CLOPT_TYPE_STRING, NULL, -1, NULL, 0, OPT_MILTER, "This option specifies a file which contains a list of basic POSIX regular\nexpressions. Addresses (sent to or from - see below) matching these regexes\nwill not be scanned.  Optionally each line can start with the string \"From:\"\nor \"To:\" (note: no whitespace after the colon) indicating if it is,\nrespectively, the sender or recipient that is to be allowed.\nIf the field is missing, \"To:\" is assumed.\nLines starting with #, : or ! are ignored.", "/etc/allowed_addresses"},
++    {"Whitelist", NULL, 0, CLOPT_TYPE_STRING, NULL, -1, NULL, 0, OPT_MILTER, "This option specifies a file which contains a list of basic POSIX regular\nexpressions. Addresses (sent to or from - see below) matching these regexes\nwill not be scanned.  Optionally each line can start with the string \"From:\"\nor \"To:\" (note: no whitespace after the colon) indicating if it is,\nrespectively, the sender or recipient that is to be allowed.\nIf the field is missing, \"To:\" is assumed.\nLines starting with #, : or ! are ignored.", "@TERMUX_PREFIX@/etc/allowed_addresses"},
  
      {"SkipAuthenticated", NULL, 0, CLOPT_TYPE_STRING, NULL, -1, NULL, 0, OPT_MILTER, "Messages from authenticated SMTP users matching this extended POSIX\nregular expression (egrep-like) will not be scanned.\nAs an alternative, a file containing a plain (not regex) list of names (one\nper line) can be specified using the prefix \"file:\".\ne.g. SkipAuthenticated file:/etc/good_guys\n\nNote: this is the AUTH login name!", "SkipAuthenticated ^(tom|dick|henry)$"},
  

@@ -2,9 +2,10 @@ TERMUX_PKG_HOMEPAGE=https://github.com/txthinking/brook
 TERMUX_PKG_DESCRIPTION="A cross-platform strong encryption and not detectable proxy. Zero-Configuration."
 TERMUX_PKG_LICENSE="GPL-3.0"
 TERMUX_PKG_MAINTAINER="Krishna kanhaiya @kcubeterm"
-TERMUX_PKG_VERSION=20210701
+TERMUX_PKG_VERSION="20240214"
 TERMUX_PKG_SRCURL=https://github.com/txthinking/brook/archive/v${TERMUX_PKG_VERSION}.tar.gz
-TERMUX_PKG_SHA256=92c2253349af05ea5aa7a45cddd39ca638c732b2ffdb5066a5f03d2df40cb0b5
+TERMUX_PKG_SHA256=d3c77b8069b21cfdb14f3282eba26b7b4860cd741462e4d6b6929ad07fa55153
+TERMUX_PKG_AUTO_UPDATE=true
 
 termux_step_make() {
 	termux_setup_golang

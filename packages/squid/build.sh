@@ -2,10 +2,13 @@ TERMUX_PKG_HOMEPAGE=http://www.squid-cache.org
 TERMUX_PKG_DESCRIPTION="Full-featured Web proxy cache server"
 TERMUX_PKG_LICENSE="GPL-2.0"
 TERMUX_PKG_MAINTAINER="@termux"
-TERMUX_PKG_VERSION=4.16
-TERMUX_PKG_SRCURL=http://squid.mirror.globo.tech/archive/4/squid-$TERMUX_PKG_VERSION.tar.xz
-TERMUX_PKG_SHA256=7e00e891757c1c02dae546c9898f440c6031b684d8c243d6edab529076e3ba63
-TERMUX_PKG_DEPENDS="libc++, libcrypt, libxml2, libltdl, libgnutls, resolv-conf"
+TERMUX_PKG_VERSION="6.6"
+TERMUX_PKG_SRCURL=https://github.com/squid-cache/squid/archive/refs/tags/SQUID_${TERMUX_PKG_VERSION/./_}.tar.gz
+TERMUX_PKG_SHA256=a294e55602e024607adffa9ee02dc5ef4f971d6281afcc8dbd2b626638772fa1
+TERMUX_PKG_AUTO_UPDATE=true
+TERMUX_PKG_UPDATE_VERSION_REGEXP='\d+(_\d+)+'
+TERMUX_PKG_UPDATE_TAG_TYPE="newest-tag"
+TERMUX_PKG_DEPENDS="libc++, libcrypt, libexpat, libgnutls, libltdl, libnettle, libxml2, openldap, resolv-conf"
 
 #disk-io uses XSI message queue which are not available on Android.
 # Option 'cache_dir' will be unusable.
@@ -51,12 +54,7 @@ termux_step_pre_configure() {
 	export BUILDCXX=g++
 	# else it picks up our cross CXXFLAGS
 	export BUILDCXXFLAGS=' '
-}
-
-termux_step_post_make_install() {
-	local _SQUID_LOGDIR=$TERMUX_PREFIX/var/logs
-	mkdir -p $_SQUID_LOGDIR
-	echo "Squid logs here by default" > $_SQUID_LOGDIR/README.squid
+	autoreconf -fi
 }
 
 termux_step_post_massage() {

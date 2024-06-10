@@ -1,7 +1,7 @@
-diff -u -r ../node-v12.9.0/deps/v8/src/logging/log.cc ./deps/v8/src/logging/log.cc
---- ../node-v12.9.0/deps/v8/src/logging/log.cc	2019-08-20 17:14:50.000000000 +0000
-+++ ./deps/v8/src/logging/log.cc	2019-08-24 22:39:52.426124955 +0000
-@@ -280,7 +280,7 @@
+diff '--color=auto' -uNr node-v18.0.0.orig/deps/v8/src/logging/log.cc node-v18.0.0/deps/v8/src/logging/log.cc
+--- node-v18.0.0.orig/deps/v8/src/logging/log.cc	2022-04-21 15:15:34.031869789 +0530
++++ node-v18.0.0/deps/v8/src/logging/log.cc	2022-04-21 15:44:33.497175145 +0530
+@@ -308,7 +308,7 @@
    FILE* perf_output_handle_;
  };
  
@@ -9,4 +9,3 @@ diff -u -r ../node-v12.9.0/deps/v8/src/logging/log.cc ./deps/v8/src/logging/log.
 +const char PerfBasicLogger::kFilenameFormatString[] = "@TERMUX_PREFIX@/tmp/perf-%d.map";
  // Extra space for the PID in the filename
  const int PerfBasicLogger::kFilenameBufferPadding = 16;
- 
